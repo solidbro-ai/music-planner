@@ -305,11 +305,11 @@ music_planner/
 
 Environment variables:
 ```bash
-OLLAMA_HOST=10.10.10.13      # Ollama server
-OLLAMA_PORT=11434            # Ollama port
-OLLAMA_MODEL=llama3.2        # Model for lyrics
+OLLAMA_HOST=localhost        # Ollama server (default: localhost)
+OLLAMA_PORT=11434            # Ollama port (default: 11434)
+OLLAMA_MODEL=llama3.2        # Model for lyrics (default: llama3.2)
 ACESTEP_BIN=~/bin/acestep    # ACE-Step CLI path
-TELEGRAM_BOT_TOKEN=xxx       # Bot token (if not hardcoded)
+TELEGRAM_BOT_TOKEN=xxx       # Bot token (required for Telegram bot)
 ```
 
 ## CLI Options
