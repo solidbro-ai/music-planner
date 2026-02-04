@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Welcome to Music Planner — AI-powered music generation</p>
+</div>
+
+<div class="stats-grid" id="stats">
+    <div class="stat-card">
+        <div class="stat-value" id="stat-songs">-</div>
+        <div class="stat-label">Songs Generated</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-artists">-</div>
+        <div class="stat-label">AI Artists</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-genres">-</div>
+        <div class="stat-label">Genre Guides</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="card">
+        <h3 style="margin-bottom: 16px; font-weight: 600;">Quick Generate</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">Create a song in seconds</p>
+        <a href="/generate" class="btn btn-primary">
+            <span>✨</span> Generate Song
+        </a>
+    </div>
+    
+    <div class="card">
+        <h3 style="margin-bottom: 16px; font-weight: 600;">Recent Songs</h3>
+        <div id="recent-songs" style="color: var(--text-secondary);">Loading...</div>
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <h3 style="margin-bottom: 16px; font-weight: 600;">Featured Artists</h3>
+    <div class="card-grid" id="featured-artists">
+        <div class="loading"><div class="spinner"></div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadDashboard() {
+    // Load stats
+    const stats = await fetch('/api/stats').then(r => r.json());
+    document.getElementById('stat-songs').textContent = stats.songs;
+    document.getElementById('stat-artists').textContent = stats.artists;
+    document.getElementById('stat-genres').textContent = stats.genres;
+    
+    // Load recent songs
+    const songs = await fetch('/api/songs').then(r => r.json());
+    const recentContainer = document.getElementById('recent-songs');
+    if (songs.length === 0) {
+        recentContainer.innerHTML = '<p>No songs yet. <a href="/generate" style="color: var(--accent);">Generate one!</a></p>';
+    } else {
+        recentContainer.innerHTML = songs.slice(0, 3).map(song => `
+            <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
+                <div style="font-weight: 500; color: var(--text-primary);">${song.artist}</div>
+                <div style="font-size: 13px; color: var(--text-muted);">${song.concept.substring(0, 50)}...</div>
+            </div>
+        `).join('');
+    }
+    
+    // Load featured artists
+    const artists = await fetch('/api/artists').then(r => r.json());
+    const artistsContainer = document.getElementById('featured-artists');
+    artistsContainer.innerHTML = artists.slice(0, 4).map(artist => `
+        <div class="artist-card">
+            <div class="artist-name">${artist.name || artist.filename}</div>
+            <div class="artist-personality">${artist.personality || 'AI Artist'}</div>
+            <div class="artist-meta">
+                <span class="artist-tag energy-${artist.energy || 'medium'}">${artist.energy || 'medium'} energy</span>
+                <span class="artist-tag">${artist.vocal_gender || 'any'}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+loadDashboard();
+</script>
+{% endblock %}

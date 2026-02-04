@@ -1,0 +1,35 @@
+# Environment and secrets
+.env
+*.env
+secrets.py
+config.local.py
+
+# Logs
+*.log
+bot.log
+
+# Generated content (keep structure, not content)
+catalog/songs.json
+stats.json
+queue.json
+templates/*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Misc
+nohup.out

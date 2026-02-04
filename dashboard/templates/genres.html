@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Genres - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">Genres</h1>
+        <p class="page-subtitle">Genre guides for better song generation</p>
+    </div>
+    <a href="/create" class="btn btn-primary">➕ New Genre</a>
+</div>
+
+<div class="card-grid" id="genres-container">
+    <div class="loading"><div class="spinner"></div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadGenres() {
+    const genres = await fetch('/api/genres').then(r => r.json());
+    const container = document.getElementById('genres-container');
+    
+    if (genres.length === 0) {
+        container.innerHTML = `
+            <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                <h3 style="margin-bottom: 16px;">No genre guides yet</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 24px;">Create guides for better song generation</p>
+                <a href="/create" class="btn btn-primary">➕ Create Genre Guide</a>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = genres.map(genre => `
+        <div class="genre-card">
+            <div class="genre-title">${genre.title}</div>
+            <div class="genre-tags">${genre.tags || 'No tags defined'}</div>
+            <div style="margin-top: 16px;">
+                <span style="color: var(--text-muted); font-size: 12px;">📁 ${genre.filename}.md</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+loadGenres();
+</script>
+{% endblock %}

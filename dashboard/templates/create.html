@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Create - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Create New</h1>
+    <p class="page-subtitle">Add new artists or genre guides with AI</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <!-- Create Artist -->
+    <div class="card">
+        <h3 style="margin-bottom: 8px;">🎤 New Artist</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">
+            Describe an artist and Ollama will create a complete profile
+        </p>
+        
+        <form id="artist-form">
+            <div class="form-group">
+                <label class="form-label">Artist Description</label>
+                <textarea class="form-textarea" id="artist-description" rows="4" placeholder="e.g., a melancholic indie folk singer who writes about nature and solitude, with a soft ethereal voice..."></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" id="create-artist-btn">
+                ✨ Create Artist
+            </button>
+        </form>
+        
+        <div id="artist-output" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+            <div id="artist-alert"></div>
+            <div class="output-log" id="artist-log"></div>
+        </div>
+    </div>
+    
+    <!-- Create Genre -->
+    <div class="card">
+        <h3 style="margin-bottom: 8px;">🎸 New Genre Guide</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">
+            Describe a genre and Ollama will create a comprehensive guide
+        </p>
+        
+        <form id="genre-form">
+            <div class="form-group">
+                <label class="form-label">Genre Description</label>
+                <textarea class="form-textarea" id="genre-description" rows="4" placeholder="e.g., vaporwave aesthetic lo-fi with japanese city pop influences and nostalgic 80s synths..."></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" id="create-genre-btn">
+                ✨ Create Genre Guide
+            </button>
+        </form>
+        
+        <div id="genre-output" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+            <div id="genre-alert"></div>
+            <div class="output-log" id="genre-log"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Examples -->
+<div class="card" style="margin-top: 24px;">
+    <h3 style="margin-bottom: 16px;">💡 Example Descriptions</h3>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div>
+            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">Artists</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn btn-secondary btn-sm example-btn" data-type="artist" data-text="a mysterious dark electronic producer who makes industrial techno with distorted vocals">
+                    Industrial Techno Producer
+                </button>
+                <button class="btn btn-secondary btn-sm example-btn" data-type="artist" data-text="a warm acoustic singer-songwriter with a folk influence who writes about small town life and nostalgia">
+                    Folk Singer-Songwriter
+                </button>
+                <button class="btn btn-secondary btn-sm example-btn" data-type="artist" data-text="an energetic female K-pop inspired artist with catchy hooks and dance beats">
+                    K-Pop Inspired
+                </button>
+            </div>
+        </div>
+        
+        <div>
+            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">Genres</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn btn-secondary btn-sm example-btn" data-type="genre" data-text="vaporwave with japanese city pop influences, nostalgic 80s synths, and dreamy atmosphere">
+                    Vaporwave
+                </button>
+                <button class="btn btn-secondary btn-sm example-btn" data-type="genre" data-text="phonk with cowbell, aggressive Memphis rap samples, and dark drifting energy">
+                    Phonk
+                </button>
+                <button class="btn btn-secondary btn-sm example-btn" data-type="genre" data-text="afrobeats with dancehall influences, tropical percussion, and feel-good summer vibes">
+                    Afrobeats
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Artist form
+document.getElementById('artist-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const btn = document.getElementById('create-artist-btn');
+    const description = document.getElementById('artist-description').value;
+    
+    if (!description) return;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px;"></span> Creating...';
+    
+    document.getElementById('artist-output').style.display = 'block';
+    document.getElementById('artist-alert').innerHTML = '';
+    document.getElementById('artist-log').textContent = 'Generating artist profile with Ollama...\n';
+    
+    try {
+        const response = await fetch('/api/create/artist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description })
+        });
+        
+        const result = await response.json();
+        document.getElementById('artist-log').textContent = result.output || result.error;
+        
+        if (result.success) {
+            document.getElementById('artist-alert').innerHTML = `
+                <div class="alert alert-success">✅ Artist created! <a href="/artists" style="color: inherit; text-decoration: underline;">View Artists</a></div>
+            `;
+        } else {
+            document.getElementById('artist-alert').innerHTML = `
+                <div class="alert alert-error">❌ Failed: ${result.error}</div>
+            `;
+        }
+    } catch (err) {
+        document.getElementById('artist-alert').innerHTML = `
+            <div class="alert alert-error">❌ Error: ${err.message}</div>
+        `;
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '✨ Create Artist';
+});
+
+// Genre form
+document.getElementById('genre-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const btn = document.getElementById('create-genre-btn');
+    const description = document.getElementById('genre-description').value;
+    
+    if (!description) return;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px;"></span> Creating...';
+    
+    document.getElementById('genre-output').style.display = 'block';
+    document.getElementById('genre-alert').innerHTML = '';
+    document.getElementById('genre-log').textContent = 'Generating genre guide with Ollama...\n';
+    
+    try {
+        const response = await fetch('/api/create/genre', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description })
+        });
+        
+        const result = await response.json();
+        document.getElementById('genre-log').textContent = result.output || result.error;
+        
+        if (result.success) {
+            document.getElementById('genre-alert').innerHTML = `
+                <div class="alert alert-success">✅ Genre guide created! <a href="/genres" style="color: inherit; text-decoration: underline;">View Genres</a></div>
+            `;
+        } else {
+            document.getElementById('genre-alert').innerHTML = `
+                <div class="alert alert-error">❌ Failed: ${result.error}</div>
+            `;
+        }
+    } catch (err) {
+        document.getElementById('genre-alert').innerHTML = `
+            <div class="alert alert-error">❌ Error: ${err.message}</div>
+        `;
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '✨ Create Genre Guide';
+});
+
+// Example buttons
+document.querySelectorAll('.example-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const type = btn.dataset.type;
+        const text = btn.dataset.text;
+        
+        if (type === 'artist') {
+            document.getElementById('artist-description').value = text;
+        } else {
+            document.getElementById('genre-description').value = text;
+        }
+    });
+});
+</script>
+{% endblock %}

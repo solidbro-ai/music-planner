@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Song - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Generate Song</h1>
+    <p class="page-subtitle">Create AI-generated music with your artists</p>
+</div>
+
+<div class="card">
+    <!-- Mode Selector -->
+    <div class="form-group">
+        <label class="form-label">Generation Mode</label>
+        <div class="mode-selector">
+            <button class="mode-btn active" data-mode="standard">🎤 Standard</button>
+            <button class="mode-btn" data-mode="collab">🎭 Collab</button>
+            <button class="mode-btn" data-mode="battle">⚔️ Battle</button>
+            <button class="mode-btn" data-mode="album">💿 Album</button>
+            <button class="mode-btn" data-mode="vibe">🎯 Vibe Match</button>
+            <button class="mode-btn" data-mode="lyrics">📝 Lyrics First</button>
+        </div>
+    </div>
+    
+    <form id="generate-form">
+        <!-- Artist Selection (hidden in some modes) -->
+        <div class="form-group" id="artist-group">
+            <label class="form-label">Artist</label>
+            <select class="form-select" id="artist" name="artist">
+                <option value="">Select an artist...</option>
+            </select>
+        </div>
+        
+        <!-- Second Artist (for collab/battle) -->
+        <div class="form-group" id="artist2-group" style="display: none;">
+            <label class="form-label">Second Artist</label>
+            <select class="form-select" id="artist2" name="artist2">
+                <option value="">Select second artist...</option>
+            </select>
+        </div>
+        
+        <!-- Vibe Input (for vibe mode) -->
+        <div class="form-group" id="vibe-group" style="display: none;">
+            <label class="form-label">Describe the Vibe</label>
+            <input type="text" class="form-input" id="vibe" name="vibe" placeholder="e.g., aggressive workout energy, late night sad hours...">
+        </div>
+        
+        <!-- Concept Input -->
+        <div class="form-group" id="concept-group">
+            <label class="form-label" id="concept-label">Song Concept</label>
+            <input type="text" class="form-input" id="concept" name="concept" placeholder="e.g., a song about city lights at midnight...">
+        </div>
+        
+        <!-- Custom Lyrics Toggle -->
+        <div class="form-group" id="lyrics-toggle-group">
+            <div class="form-checkbox-group">
+                <input type="checkbox" class="form-checkbox" id="use-custom-lyrics" name="use_custom_lyrics">
+                <label for="use-custom-lyrics">Provide custom lyrics</label>
+            </div>
+        </div>
+        
+        <!-- Custom Lyrics Textarea (conditional) -->
+        <div class="form-group" id="lyrics-group" style="display: none;">
+            <label class="form-label">Your Lyrics</label>
+            <textarea class="form-textarea" id="lyrics" name="lyrics" rows="10" placeholder="[verse]
+Your lyrics here...
+
+[chorus]
+Catchy hook goes here..."></textarea>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+                Use structure tags: [verse], [chorus], [bridge], [intro], [outro]
+            </div>
+        </div>
+        
+        <!-- Duration & Steps -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="form-group">
+                <label class="form-label">Duration (seconds)</label>
+                <input type="number" class="form-input" id="duration" name="duration" value="120" min="30" max="240">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Quality Steps</label>
+                <select class="form-select" id="steps" name="steps">
+                    <option value="27">Draft (27 steps - fast)</option>
+                    <option value="45">Good (45 steps)</option>
+                    <option value="60" selected>High Quality (60 steps)</option>
+                    <option value="100">Ultra (100 steps - slow)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div style="margin-top: 24px;">
+            <button type="submit" class="btn btn-primary" id="generate-btn">
+                <span>✨</span> Generate Song
+            </button>
+        </div>
+    </form>
+    
+    <!-- Output -->
+    <div id="output-section" style="display: none; margin-top: 32px; padding-top: 32px; border-top: 1px solid var(--border);">
+        <h3 style="margin-bottom: 16px;">Output</h3>
+        <div id="output-alert"></div>
+        <div id="output-audio" style="margin-bottom: 16px;"></div>
+        <div class="output-log" id="output-log"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentMode = 'standard';
+const artists = [];
+
+// Load artists for selects
+async function loadArtists() {
+    const data = await fetch('/api/artists').then(r => r.json());
+    artists.push(...data);
+    
+    const options = data.map(a => `<option value="${a.filename}">${a.name || a.filename}</option>`).join('');
+    document.getElementById('artist').innerHTML = '<option value="">Select an artist...</option>' + options;
+    document.getElementById('artist2').innerHTML = '<option value="">Select second artist...</option>' + options;
+    
+    // Check URL params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('artist')) {
+        document.getElementById('artist').value = params.get('artist');
+    }
+}
+
+// Mode switching
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentMode = btn.dataset.mode;
+        updateFormForMode();
+    });
+});
+
+function updateFormForMode() {
+    // Reset visibility
+    document.getElementById('artist-group').style.display = 'block';
+    document.getElementById('artist2-group').style.display = 'none';
+    document.getElementById('vibe-group').style.display = 'none';
+    document.getElementById('concept-group').style.display = 'block';
+    document.getElementById('lyrics-toggle-group').style.display = 'block';
+    document.getElementById('concept-label').textContent = 'Song Concept';
+    
+    switch(currentMode) {
+        case 'collab':
+        case 'battle':
+            document.getElementById('artist2-group').style.display = 'block';
+            break;
+        case 'album':
+            document.getElementById('concept-label').textContent = 'Album Theme';
+            document.getElementById('lyrics-toggle-group').style.display = 'none';
+            document.getElementById('lyrics-group').style.display = 'none';
+            break;
+        case 'vibe':
+            document.getElementById('artist-group').style.display = 'none';
+            document.getElementById('vibe-group').style.display = 'block';
+            break;
+        case 'lyrics':
+            document.getElementById('artist-group').style.display = 'none';
+            document.getElementById('concept-group').style.display = 'none';
+            document.getElementById('lyrics-toggle-group').style.display = 'none';
+            document.getElementById('lyrics-group').style.display = 'block';
+            break;
+    }
+}
+
+// Custom lyrics toggle
+document.getElementById('use-custom-lyrics').addEventListener('change', (e) => {
+    document.getElementById('lyrics-group').style.display = e.target.checked ? 'block' : 'none';
+});
+
+// Form submission
+document.getElementById('generate-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; margin-right: 8px;"></span> Generating...';
+    
+    document.getElementById('output-section').style.display = 'block';
+    document.getElementById('output-alert').innerHTML = '';
+    document.getElementById('output-audio').innerHTML = '';
+    document.getElementById('output-log').textContent = 'Starting generation...\n';
+    
+    const formData = {
+        mode: currentMode,
+        artist: document.getElementById('artist').value,
+        artist2: document.getElementById('artist2').value,
+        concept: document.getElementById('concept').value,
+        vibe: document.getElementById('vibe').value,
+        lyrics: document.getElementById('use-custom-lyrics').checked || currentMode === 'lyrics' 
+            ? document.getElementById('lyrics').value : null,
+        duration: parseInt(document.getElementById('duration').value),
+        steps: parseInt(document.getElementById('steps').value)
+    };
+    
+    try {
+        const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        document.getElementById('output-log').textContent = result.output || result.error || 'No output';
+        
+        if (result.success && result.audio_file) {
+            const filename = result.audio_file.split('/').pop();
+            document.getElementById('output-alert').innerHTML = `
+                <div class="alert alert-success">✅ Song generated successfully!</div>
+            `;
+            document.getElementById('output-audio').innerHTML = `
+                <audio controls style="width: 100%;">
+                    <source src="/api/audio/${filename}" type="audio/mpeg">
+                </audio>
+            `;
+        } else {
+            document.getElementById('output-alert').innerHTML = `
+                <div class="alert alert-error">❌ Generation failed: ${result.error || 'Unknown error'}</div>
+            `;
+        }
+    } catch (err) {
+        document.getElementById('output-alert').innerHTML = `
+            <div class="alert alert-error">❌ Error: ${err.message}</div>
+        `;
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '<span>✨</span> Generate Song';
+});
+
+loadArtists();
+</script>
+{% endblock %}

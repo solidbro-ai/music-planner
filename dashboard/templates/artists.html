@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Artists - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">Artists</h1>
+        <p class="page-subtitle">Your AI artist roster</p>
+    </div>
+    <a href="/create" class="btn btn-primary">➕ New Artist</a>
+</div>
+
+<div class="card-grid" id="artists-container">
+    <div class="loading"><div class="spinner"></div></div>
+</div>
+
+<!-- Artist Detail Modal -->
+<div id="artist-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 700px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="modal-artist-name" style="font-size: 24px;"></h2>
+                <button onclick="closeModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadArtists() {
+    const artists = await fetch('/api/artists').then(r => r.json());
+    const container = document.getElementById('artists-container');
+    
+    container.innerHTML = artists.map(artist => {
+        const genres = artist.genres ? artist.genres.slice(0, 2).join(', ') : '';
+        return `
+            <div class="artist-card" onclick="showArtist('${artist.filename}')" style="cursor: pointer;">
+                <div class="artist-name">${artist.name || artist.filename}</div>
+                <div class="artist-personality">${artist.personality || 'AI Artist'}</div>
+                <div style="margin: 12px 0; color: var(--text-secondary); font-size: 13px;">
+                    ${artist.mood || ''}
+                </div>
+                <div class="artist-meta">
+                    <span class="artist-tag energy-${artist.energy || 'medium'}">
+                        ${artist.energy || 'medium'}
+                    </span>
+                    <span class="artist-tag">${artist.vocal_gender || '—'}</span>
+                    ${genres ? `<span class="artist-tag">${genres}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function showArtist(filename) {
+    const artist = await fetch(`/api/artists/${filename}`).then(r => r.json());
+    
+    document.getElementById('modal-artist-name').textContent = artist.name || filename;
+    
+    const themes = artist.themes ? artist.themes.map(t => `<span class="artist-tag">${t}</span>`).join(' ') : '';
+    const instruments = artist.instruments ? artist.instruments.join(', ') : '';
+    
+    document.getElementById('modal-content').innerHTML = `
+        <div style="display: grid; gap: 20px;">
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Personality</div>
+                <div>${artist.personality || '—'}</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Mood</div>
+                    <div>${artist.mood || '—'}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Energy</div>
+                    <div>${artist.energy || '—'}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Voice</div>
+                    <div>${artist.vocal_gender || '—'}</div>
+                </div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Genres</div>
+                <div>${(artist.genres || []).join(', ')}</div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Instruments</div>
+                <div>${instruments || '—'}</div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Themes</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">${themes || '—'}</div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Signature Tags</div>
+                <div class="genre-tags">${artist.signature_tags || '—'}</div>
+            </div>
+            
+            <div style="margin-top: 12px;">
+                <a href="/generate?artist=${filename}" class="btn btn-primary">🎵 Generate Song with ${artist.name || filename}</a>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('artist-modal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('artist-modal').style.display = 'none';
+}
+
+document.getElementById('artist-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'artist-modal') closeModal();
+});
+
+loadArtists();
+</script>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Songs - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Songs</h1>
+    <p class="page-subtitle">Browse all generated songs</p>
+</div>
+
+<div class="card-grid" id="songs-container">
+    <div class="loading"><div class="spinner"></div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadSongs() {
+    const songs = await fetch('/api/songs').then(r => r.json());
+    const container = document.getElementById('songs-container');
+    
+    if (songs.length === 0) {
+        container.innerHTML = `
+            <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                <h3 style="margin-bottom: 16px;">No songs yet</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 24px;">Generate your first AI song</p>
+                <a href="/generate" class="btn btn-primary">✨ Generate Song</a>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = songs.map(song => {
+        const filename = song.file ? song.file.split('/').pop() : '';
+        return `
+            <div class="song-card">
+                <div class="song-header">
+                    <div class="song-id">#${song.id} · ${song.mode || 'standard'}</div>
+                    <div class="song-artist">${song.artist}</div>
+                    <div class="song-concept">${song.concept}</div>
+                </div>
+                ${song.file_exists ? `
+                    <div class="song-player">
+                        <audio controls preload="none">
+                            <source src="/api/audio/${filename}" type="audio/mpeg">
+                        </audio>
+                    </div>
+                ` : `
+                    <div style="padding: 16px 20px; background: var(--bg-tertiary); color: var(--text-muted); font-size: 13px;">
+                        ⚠️ Audio file not found
+                    </div>
+                `}
+                <div class="song-meta">
+                    <span>📅 ${song.date}</span>
+                    <span>🕐 ${song.time}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+loadSongs();
+</script>
+{% endblock %}
