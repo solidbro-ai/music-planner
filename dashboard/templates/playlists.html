@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Playlists - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">📋 Playlists</h1>
+        <p class="page-subtitle">Organize your songs into collections</p>
+    </div>
+    <button onclick="showCreatePlaylist()" class="btn btn-primary">➕ New Playlist</button>
+</div>
+
+<div class="card-grid" id="playlists-container">
+    <div class="loading"><div class="spinner"></div></div>
+</div>
+
+<!-- View Playlist Modal -->
+<div id="playlist-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="playlist-title" style="font-size: 24px;"></h2>
+                <button onclick="closePlaylistModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <div id="playlist-content"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Playlist Modal -->
+<div id="edit-playlist-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1001; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 500px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="edit-playlist-title" style="font-size: 24px;">New Playlist</h2>
+                <button onclick="closeEditPlaylistModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <form id="playlist-form" onsubmit="savePlaylist(event)">
+                <input type="hidden" id="playlist-id">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="playlist-name" class="form-input" required placeholder="My Awesome Playlist">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="playlist-description" class="form-textarea" rows="3" placeholder="What's this playlist about?"></textarea>
+                </div>
+                <div class="form-group">
+                    <div class="form-checkbox-group">
+                        <input type="checkbox" class="form-checkbox" id="playlist-public">
+                        <label for="playlist-public">Make this playlist public</label>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" onclick="closeEditPlaylistModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadPlaylists() {
+    const playlists = await fetch('/api/playlists').then(r => r.json());
+    const container = document.getElementById('playlists-container');
+    
+    if (playlists.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <h3>No playlists yet</h3>
+                <p>Create your first playlist to organize your music!</p>
+                <button onclick="showCreatePlaylist()" class="btn btn-primary" style="margin-top: 16px;">➕ Create Playlist</button>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = playlists.map(p => `
+        <div class="card" style="cursor: pointer;" onclick="viewPlaylist(${p.id})">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h3 style="margin-bottom: 8px;">${p.name}</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px;">${p.description || 'No description'}</p>
+                </div>
+                ${p.is_public ? '<span class="tag">public</span>' : '<span class="tag">private</span>'}
+            </div>
+            <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--text-muted);">${p.song_count} songs</span>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="event.stopPropagation(); editPlaylist(${p.id})" class="btn btn-secondary btn-sm">✏️</button>
+                    <button onclick="event.stopPropagation(); deletePlaylist(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="btn btn-secondary btn-sm" style="background: var(--error);">🗑️</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function viewPlaylist(id) {
+    const data = await fetch(`/api/playlists/${id}`).then(r => r.json());
+    
+    document.getElementById('playlist-title').textContent = data.playlist.name;
+    
+    if (data.songs.length === 0) {
+        document.getElementById('playlist-content').innerHTML = '<p style="color: var(--text-muted);">This playlist is empty</p>';
+    } else {
+        document.getElementById('playlist-content').innerHTML = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Artist</th>
+                        <th>Concept</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.songs.map((s, i) => `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${s.artist}</td>
+                            <td style="color: var(--text-secondary);">${(s.concept || '').substring(0, 40)}</td>
+                            <td>
+                                <button onclick="removeFromPlaylist(${id}, ${s.id})" class="btn btn-secondary btn-sm" style="background: var(--error);">Remove</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+    
+    document.getElementById('playlist-modal').style.display = 'block';
+}
+
+function closePlaylistModal() {
+    document.getElementById('playlist-modal').style.display = 'none';
+}
+
+function showCreatePlaylist() {
+    document.getElementById('edit-playlist-title').textContent = 'New Playlist';
+    document.getElementById('playlist-id').value = '';
+    document.getElementById('playlist-form').reset();
+    document.getElementById('edit-playlist-modal').style.display = 'block';
+}
+
+async function editPlaylist(id) {
+    const data = await fetch(`/api/playlists/${id}`).then(r => r.json());
+    document.getElementById('edit-playlist-title').textContent = '✏️ Edit Playlist';
+    document.getElementById('playlist-id').value = id;
+    document.getElementById('playlist-name').value = data.playlist.name;
+    document.getElementById('playlist-description').value = data.playlist.description || '';
+    document.getElementById('playlist-public').checked = data.playlist.is_public;
+    document.getElementById('edit-playlist-modal').style.display = 'block';
+}
+
+function closeEditPlaylistModal() {
+    document.getElementById('edit-playlist-modal').style.display = 'none';
+}
+
+async function savePlaylist(e) {
+    e.preventDefault();
+    const id = document.getElementById('playlist-id').value;
+    const data = {
+        name: document.getElementById('playlist-name').value,
+        description: document.getElementById('playlist-description').value,
+        is_public: document.getElementById('playlist-public').checked
+    };
+    
+    const url = id ? `/api/playlists/${id}` : '/api/playlists';
+    const method = id ? 'PUT' : 'POST';
+    
+    await fetch(url, {
+        method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    
+    closeEditPlaylistModal();
+    loadPlaylists();
+}
+
+async function deletePlaylist(id, name) {
+    if (!confirm(`Delete playlist "${name}"?`)) return;
+    await fetch(`/api/playlists/${id}`, {method: 'DELETE'});
+    loadPlaylists();
+}
+
+async function removeFromPlaylist(playlistId, songId) {
+    await fetch(`/api/playlists/${playlistId}/songs/${songId}`, {method: 'DELETE'});
+    viewPlaylist(playlistId);
+}
+
+document.getElementById('playlist-modal').addEventListener('click', e => { if (e.target.id === 'playlist-modal') closePlaylistModal(); });
+document.getElementById('edit-playlist-modal').addEventListener('click', e => { if (e.target.id === 'edit-playlist-modal') closeEditPlaylistModal(); });
+
+loadPlaylists();
+</script>
+{% endblock %}

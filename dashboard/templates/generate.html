@@ -9,6 +9,18 @@
 </div>
 
 <div class="card">
+    <!-- Template Selector -->
+    <div class="form-group" id="template-group">
+        <label class="form-label">Load Template</label>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <select class="form-select" id="template-select" style="flex: 1;">
+                <option value="">-- No Template --</option>
+            </select>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="loadSelectedTemplate()">📋 Load</button>
+            <a href="/templates" class="btn btn-secondary btn-sm">Manage Templates</a>
+        </div>
+    </div>
+    
     <!-- Mode Selector -->
     <div class="form-group">
         <label class="form-label">Generation Mode</label>
@@ -72,8 +84,8 @@ Catchy hook goes here..."></textarea>
             </div>
         </div>
         
-        <!-- Duration & Steps -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- Duration, Steps & Takes -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
             <div class="form-group">
                 <label class="form-label">Duration (seconds)</label>
                 <input type="number" class="form-input" id="duration" name="duration" value="120" min="30" max="240">
@@ -87,6 +99,27 @@ Catchy hook goes here..."></textarea>
                     <option value="100">Ultra (100 steps - slow)</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label class="form-label">Takes (multiple versions)</label>
+                <select class="form-select" id="takes" name="takes">
+                    <option value="1" selected>1 take</option>
+                    <option value="2">2 takes</option>
+                    <option value="3">3 takes</option>
+                    <option value="4">4 takes (max)</option>
+                </select>
+                <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Generate multiple versions, pick the best!</p>
+            </div>
+        </div>
+        
+        <!-- Style Transfer Option (shown when a song is selected) -->
+        <div class="form-group" id="style-transfer-group" style="display: none;">
+            <div class="form-checkbox-group">
+                <input type="checkbox" class="form-checkbox" id="style-transfer" name="style_transfer">
+                <label for="style-transfer">Style Transfer from existing song</label>
+            </div>
+            <select class="form-select" id="source-song" name="source_song" style="margin-top: 8px; display: none;">
+                <option value="">Select a song to transfer style from...</option>
+            </select>
         </div>
         
         <div style="margin-top: 24px;">
@@ -110,6 +143,7 @@ Catchy hook goes here..."></textarea>
 <script>
 let currentMode = 'standard';
 const artists = [];
+let templates = [];
 
 // Load artists for selects
 async function loadArtists() {
@@ -125,6 +159,56 @@ async function loadArtists() {
     if (params.get('artist')) {
         document.getElementById('artist').value = params.get('artist');
     }
+}
+
+// Load templates
+async function loadTemplates() {
+    templates = await fetch('/api/templates').then(r => r.json());
+    
+    const options = '<option value="">-- No Template --</option>' + 
+        templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    document.getElementById('template-select').innerHTML = options;
+    
+    // Check URL params for template
+    const params = new URLSearchParams(window.location.search);
+    const templateId = params.get('template');
+    if (templateId) {
+        document.getElementById('template-select').value = templateId;
+        loadSelectedTemplate();
+    }
+}
+
+function loadSelectedTemplate() {
+    const templateId = document.getElementById('template-select').value;
+    if (!templateId) return;
+    
+    const template = templates.find(t => t.id == templateId);
+    if (!template) return;
+    
+    // Set mode
+    currentMode = template.mode || 'standard';
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === currentMode);
+    });
+    updateFormForMode();
+    
+    // Set artist
+    if (template.artist) {
+        document.getElementById('artist').value = template.artist;
+    }
+    if (template.artist2) {
+        document.getElementById('artist2').value = template.artist2;
+    }
+    if (template.vibe) {
+        document.getElementById('vibe').value = template.vibe;
+    }
+    
+    // Set quality/duration
+    document.getElementById('duration').value = template.duration || 120;
+    
+    // Map quality to steps
+    const qualitySteps = { draft: 27, normal: 60, high: 100, ultra: 100 };
+    document.getElementById('steps').value = qualitySteps[template.quality] || template.steps || 60;
 }
 
 // Mode switching
@@ -196,7 +280,8 @@ document.getElementById('generate-form').addEventListener('submit', async (e) =>
         lyrics: document.getElementById('use-custom-lyrics').checked || currentMode === 'lyrics' 
             ? document.getElementById('lyrics').value : null,
         duration: parseInt(document.getElementById('duration').value),
-        steps: parseInt(document.getElementById('steps').value)
+        steps: parseInt(document.getElementById('steps').value),
+        takes: parseInt(document.getElementById('takes').value)
     };
     
     try {
@@ -236,5 +321,6 @@ document.getElementById('generate-form').addEventListener('submit', async (e) =>
 });
 
 loadArtists();
+loadTemplates();
 </script>
 {% endblock %}

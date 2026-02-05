@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Folders - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">📁 Folders</h1>
+        <p class="page-subtitle">Organize your content into collections</p>
+    </div>
+    <button onclick="showCreateFolder()" class="btn btn-primary">➕ New Folder</button>
+</div>
+
+<div class="card-grid" id="folders-container">
+    <div class="loading"><div class="spinner"></div></div>
+</div>
+
+<!-- View Folder Modal -->
+<div id="folder-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="folder-title" style="font-size: 24px;"></h2>
+                <button onclick="closeFolderModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <div id="folder-content"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Folder Modal -->
+<div id="create-folder-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1001; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 500px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="create-folder-title" style="font-size: 24px;">New Folder</h2>
+                <button onclick="closeCreateFolderModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <form id="folder-form" onsubmit="saveFolder(event)">
+                <input type="hidden" id="folder-id">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="folder-name" class="form-input" required placeholder="My Collection">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Icon</label>
+                    <select id="folder-icon" class="form-select">
+                        <option value="📁">📁 Folder</option>
+                        <option value="🎵">🎵 Music</option>
+                        <option value="⭐">⭐ Favorites</option>
+                        <option value="🔥">🔥 Fire</option>
+                        <option value="💎">💎 Diamond</option>
+                        <option value="🎤">🎤 Artist</option>
+                        <option value="🎸">🎸 Guitar</option>
+                        <option value="🎹">🎹 Piano</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" id="folder-color" class="form-input" value="#8b5cf6" style="height: 50px;">
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" onclick="closeCreateFolderModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadFolders() {
+    const folders = await fetch('/api/folders').then(r => r.json());
+    const container = document.getElementById('folders-container');
+    
+    if (folders.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <h3>No folders yet</h3>
+                <p>Create folders to organize your songs and artists!</p>
+                <button onclick="showCreateFolder()" class="btn btn-primary" style="margin-top: 16px;">➕ Create Folder</button>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = folders.map(f => `
+        <div class="card" style="cursor: pointer; border-left: 4px solid ${f.color};" onclick="viewFolder(${f.id})">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="font-size: 32px;">${f.icon}</span>
+                <div style="flex: 1;">
+                    <h3 style="margin-bottom: 4px;">${f.name}</h3>
+                    <p style="color: var(--text-muted);">${f.item_count} items</p>
+                </div>
+            </div>
+            <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
+                <button onclick="event.stopPropagation(); editFolder(${f.id})" class="btn btn-secondary btn-sm">✏️</button>
+                <button onclick="event.stopPropagation(); deleteFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')" class="btn btn-secondary btn-sm" style="background: var(--error);">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function viewFolder(id) {
+    const data = await fetch(`/api/folders/${id}`).then(r => r.json());
+    document.getElementById('folder-title').textContent = `${data.folder.icon} ${data.folder.name}`;
+    
+    let content = '';
+    if (data.songs.length > 0) {
+        content += `<h4 style="margin-bottom: 12px;">🎶 Songs (${data.songs.length})</h4>`;
+        content += data.songs.map(s => `
+            <div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
+                <span>${s.artist} - ${(s.concept || '').substring(0, 30)}</span>
+                <button onclick="removeFromFolder(${id}, 'song', ${s.id})" class="btn btn-secondary btn-sm" style="background: var(--error);">Remove</button>
+            </div>
+        `).join('');
+    }
+    if (data.artists.length > 0) {
+        content += `<h4 style="margin: 16px 0 12px;">🎤 Artists (${data.artists.length})</h4>`;
+        content += data.artists.map(a => `
+            <div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
+                <span>${a.name}</span>
+                <button onclick="removeFromFolder(${id}, 'artist', ${a.id})" class="btn btn-secondary btn-sm" style="background: var(--error);">Remove</button>
+            </div>
+        `).join('');
+    }
+    if (!content) {
+        content = '<p style="color: var(--text-muted);">This folder is empty</p>';
+    }
+    
+    document.getElementById('folder-content').innerHTML = content;
+    document.getElementById('folder-modal').style.display = 'block';
+}
+
+function closeFolderModal() {
+    document.getElementById('folder-modal').style.display = 'none';
+}
+
+function showCreateFolder() {
+    document.getElementById('create-folder-title').textContent = 'New Folder';
+    document.getElementById('folder-id').value = '';
+    document.getElementById('folder-form').reset();
+    document.getElementById('create-folder-modal').style.display = 'block';
+}
+
+async function editFolder(id) {
+    const data = await fetch(`/api/folders/${id}`).then(r => r.json());
+    document.getElementById('create-folder-title').textContent = '✏️ Edit Folder';
+    document.getElementById('folder-id').value = id;
+    document.getElementById('folder-name').value = data.folder.name;
+    document.getElementById('folder-icon').value = data.folder.icon;
+    document.getElementById('folder-color').value = data.folder.color;
+    document.getElementById('create-folder-modal').style.display = 'block';
+}
+
+function closeCreateFolderModal() {
+    document.getElementById('create-folder-modal').style.display = 'none';
+}
+
+async function saveFolder(e) {
+    e.preventDefault();
+    const id = document.getElementById('folder-id').value;
+    const data = {
+        name: document.getElementById('folder-name').value,
+        icon: document.getElementById('folder-icon').value,
+        color: document.getElementById('folder-color').value
+    };
+    
+    await fetch(id ? `/api/folders/${id}` : '/api/folders', {
+        method: id ? 'PUT' : 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    
+    closeCreateFolderModal();
+    loadFolders();
+}
+
+async function deleteFolder(id, name) {
+    if (!confirm(`Delete folder "${name}"?`)) return;
+    await fetch(`/api/folders/${id}`, {method: 'DELETE'});
+    loadFolders();
+}
+
+async function removeFromFolder(folderId, itemType, itemId) {
+    await fetch(`/api/folders/${folderId}/items/${itemType}/${itemId}`, {method: 'DELETE'});
+    viewFolder(folderId);
+}
+
+document.getElementById('folder-modal').addEventListener('click', e => { if (e.target.id === 'folder-modal') closeFolderModal(); });
+document.getElementById('create-folder-modal').addEventListener('click', e => { if (e.target.id === 'create-folder-modal') closeCreateFolderModal(); });
+
+loadFolders();
+</script>
+{% endblock %}

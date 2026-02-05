@@ -4,10 +4,10 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Check for Flask
-if ! python3 -c "import flask" 2>/dev/null; then
-    echo "Installing Flask..."
-    pip3 install flask pyyaml
+# Check for Flask and dependencies
+if ! python3 -c "import flask; import werkzeug" 2>/dev/null; then
+    echo "Installing dependencies..."
+    pip3 install flask pyyaml werkzeug
 fi
 
 echo "🎵 Starting Music Planner Dashboard..."

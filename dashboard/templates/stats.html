@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📊 Statistics</h1>
+    <p class="page-subtitle">Your music generation analytics</p>
+</div>
+
+<!-- Overview Stats -->
+<div class="stats-grid" id="overview-stats">
+    <div class="stat-card">
+        <div class="stat-value" id="stat-songs">-</div>
+        <div class="stat-label">Total Songs</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-artists">-</div>
+        <div class="stat-label">Custom Artists</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-plays">-</div>
+        <div class="stat-label">Total Plays</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-likes">-</div>
+        <div class="stat-label">Likes Received</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-badges">-</div>
+        <div class="stat-label">Badges Earned</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-cost">-</div>
+        <div class="stat-label">Est. Cost</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- Top Artists -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">🎤 Top Artists</h3>
+        <div id="top-artists">Loading...</div>
+    </div>
+    
+    <!-- Rating Distribution -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">⭐ Rating Distribution</h3>
+        <div id="rating-dist">Loading...</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- Most Played -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">🔥 Most Played</h3>
+        <div id="most-played">Loading...</div>
+    </div>
+    
+    <!-- Best Performing Tags -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">🏷️ Best Tags (by rating)</h3>
+        <div id="best-tags">Loading...</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <!-- Cost by Mode -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">💰 Generation by Mode</h3>
+        <div id="cost-by-mode">Loading...</div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">🕐 Recent Plays</h3>
+        <div id="recent-plays">Loading...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadStats() {
+    const data = await fetch('/api/stats/detailed').then(r => r.json());
+    const o = data.overview;
+    
+    // Overview
+    document.getElementById('stat-songs').textContent = o.total_songs || 0;
+    document.getElementById('stat-artists').textContent = o.total_artists || 0;
+    document.getElementById('stat-plays').textContent = o.total_plays || 0;
+    document.getElementById('stat-likes').textContent = o.likes_received || 0;
+    document.getElementById('stat-badges').textContent = o.badges || 0;
+    document.getElementById('stat-cost').textContent = '$' + (o.total_cost || 0).toFixed(2);
+    
+    // Top Artists
+    const topArtists = document.getElementById('top-artists');
+    if (data.top_artists.length === 0) {
+        topArtists.innerHTML = '<p style="color: var(--text-muted);">No data yet</p>';
+    } else {
+        topArtists.innerHTML = data.top_artists.map(a => `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <span>${a.artist}</span>
+                <span style="color: var(--text-muted);">${a.count} songs · ${(a.avg_rating || 0).toFixed(1)}⭐</span>
+            </div>
+        `).join('');
+    }
+    
+    // Rating Distribution
+    const ratingDist = document.getElementById('rating-dist');
+    if (data.rating_distribution.length === 0) {
+        ratingDist.innerHTML = '<p style="color: var(--text-muted);">No ratings yet</p>';
+    } else {
+        const maxCount = Math.max(...data.rating_distribution.map(r => r.count));
+        ratingDist.innerHTML = [1,2,3,4,5].map(rating => {
+            const r = data.rating_distribution.find(x => x.rating === rating) || {count: 0};
+            const pct = maxCount > 0 ? (r.count / maxCount * 100) : 0;
+            return `
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                    <span style="width: 30px;">${'⭐'.repeat(rating)}</span>
+                    <div style="flex: 1; background: var(--bg-tertiary); border-radius: 4px; height: 20px;">
+                        <div style="width: ${pct}%; background: var(--accent); height: 100%; border-radius: 4px;"></div>
+                    </div>
+                    <span style="width: 30px; text-align: right; color: var(--text-muted);">${r.count}</span>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    // Most Played
+    const mostPlayed = document.getElementById('most-played');
+    if (data.most_played.length === 0) {
+        mostPlayed.innerHTML = '<p style="color: var(--text-muted);">No plays recorded yet</p>';
+    } else {
+        mostPlayed.innerHTML = data.most_played.slice(0, 5).map(s => `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <span>${s.artist} - ${(s.concept || 'Untitled').substring(0, 30)}</span>
+                <span style="color: var(--accent);">${s.play_count} plays</span>
+            </div>
+        `).join('');
+    }
+    
+    // Best Tags
+    const bestTags = document.getElementById('best-tags');
+    if (data.best_tags.length === 0) {
+        bestTags.innerHTML = '<p style="color: var(--text-muted);">Add tags to songs to see trends</p>';
+    } else {
+        bestTags.innerHTML = data.best_tags.map(t => `
+            <span class="tag" style="margin: 4px;">#${t.tag} (${t.avg_rating.toFixed(1)}⭐)</span>
+        `).join('');
+    }
+    
+    // Cost by Mode
+    const costByMode = document.getElementById('cost-by-mode');
+    if (data.cost_by_mode.length === 0) {
+        costByMode.innerHTML = '<p style="color: var(--text-muted);">No generation data yet</p>';
+    } else {
+        costByMode.innerHTML = data.cost_by_mode.map(c => `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <span class="tag">${c.mode || 'standard'}</span>
+                <span style="color: var(--text-muted);">${c.count} songs · $${(c.total_cost || 0).toFixed(2)}</span>
+            </div>
+        `).join('');
+    }
+    
+    // Recent Plays
+    const recentPlays = document.getElementById('recent-plays');
+    if (data.recent_plays.length === 0) {
+        recentPlays.innerHTML = '<p style="color: var(--text-muted);">No recent plays</p>';
+    } else {
+        recentPlays.innerHTML = data.recent_plays.slice(0, 5).map(p => `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <span>${p.artist}</span>
+                <span style="color: var(--text-muted);">${new Date(p.played_at).toLocaleDateString()}</span>
+            </div>
+        `).join('');
+    }
+}
+
+loadStats();
+</script>
+{% endblock %}

@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Templates - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">Templates</h1>
+        <p class="page-subtitle">Save your favorite generation settings</p>
+    </div>
+    <button onclick="showCreateTemplate()" class="btn btn-primary">➕ New Template</button>
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table class="data-table" id="templates-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Mode</th>
+                <th>Artist</th>
+                <th>Quality</th>
+                <th>Duration</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="templates-body">
+            <tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Create/Edit Template Modal -->
+<div id="template-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="template-modal-title" style="font-size: 24px;">New Template</h2>
+                <button onclick="closeTemplateModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <form id="template-form" onsubmit="saveTemplate(event)">
+                <input type="hidden" id="template-id">
+                
+                <div class="form-group">
+                    <label class="form-label">Template Name</label>
+                    <input type="text" id="template-name" class="form-input" required placeholder="e.g., My Pop Preset">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Mode</label>
+                    <select id="template-mode" class="form-select">
+                        <option value="standard">Standard</option>
+                        <option value="collab">Collaboration</option>
+                        <option value="battle">Battle</option>
+                        <option value="album">Album</option>
+                        <option value="vibe">Vibe Match</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Artist</label>
+                    <select id="template-artist" class="form-select">
+                        <option value="">-- Select Artist --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="artist2-group" style="display: none;">
+                    <label class="form-label">Second Artist (for Collab/Battle)</label>
+                    <select id="template-artist2" class="form-select">
+                        <option value="">-- Select Artist --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="vibe-group" style="display: none;">
+                    <label class="form-label">Vibe / Mood</label>
+                    <input type="text" id="template-vibe" class="form-input" placeholder="e.g., late night chill vibes">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Quality</label>
+                        <select id="template-quality" class="form-select">
+                            <option value="draft">Draft (fast)</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="high">High</option>
+                            <option value="ultra">Ultra (slow)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Duration (sec)</label>
+                        <input type="number" id="template-duration" class="form-input" value="120" min="30" max="300">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Steps</label>
+                        <input type="number" id="template-steps" class="form-input" value="60" min="20" max="200">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Default Tags</label>
+                    <input type="text" id="template-tags" class="form-input" placeholder="Optional: tags to always include">
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" onclick="closeTemplateModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Save Template</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let artists = [];
+
+async function loadArtists() {
+    artists = await fetch('/api/artists').then(r => r.json());
+    const options = '<option value="">-- Select Artist --</option>' + 
+        artists.map(a => `<option value="${a.filename}">${a.name || a.filename}</option>`).join('');
+    document.getElementById('template-artist').innerHTML = options;
+    document.getElementById('template-artist2').innerHTML = options;
+}
+
+async function loadTemplates() {
+    const templates = await fetch('/api/templates').then(r => r.json());
+    const tbody = document.getElementById('templates-body');
+    
+    if (templates.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><h3>No templates yet</h3><p>Create templates to quickly generate songs with your favorite settings!</p></td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = templates.map(t => {
+        const artistName = t.artist ? (artists.find(a => a.filename === t.artist)?.name || t.artist) : '-';
+        return `
+            <tr>
+                <td><strong>${t.name}</strong></td>
+                <td><span class="tag">${t.mode}</span></td>
+                <td style="color: var(--text-secondary);">${artistName}</td>
+                <td><span class="tag">${t.quality}</span></td>
+                <td style="color: var(--text-muted);">${t.duration}s</td>
+                <td class="actions">
+                    <a href="/generate?template=${t.id}" class="btn btn-secondary btn-sm" style="background: var(--success);">🎵 Use</a>
+                    <button onclick="editTemplate(${t.id})" class="btn btn-secondary btn-sm" style="background: var(--accent);">✏️ Edit</button>
+                    <button onclick="deleteTemplate(${t.id}, '${t.name.replace(/'/g, "\\'")}')" class="btn btn-secondary btn-sm" style="background: var(--error);">🗑️</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function showCreateTemplate() {
+    document.getElementById('template-modal-title').textContent = 'New Template';
+    document.getElementById('template-id').value = '';
+    document.getElementById('template-form').reset();
+    document.getElementById('template-modal').style.display = 'block';
+    updateModeFields();
+}
+
+async function editTemplate(id) {
+    const template = await fetch(`/api/templates/${id}`).then(r => r.json());
+    
+    document.getElementById('template-modal-title').textContent = '✏️ Edit Template';
+    document.getElementById('template-id').value = id;
+    document.getElementById('template-name').value = template.name || '';
+    document.getElementById('template-mode').value = template.mode || 'standard';
+    document.getElementById('template-artist').value = template.artist || '';
+    document.getElementById('template-artist2').value = template.artist2 || '';
+    document.getElementById('template-vibe').value = template.vibe || '';
+    document.getElementById('template-quality').value = template.quality || 'normal';
+    document.getElementById('template-duration').value = template.duration || 120;
+    document.getElementById('template-steps').value = template.steps || 60;
+    document.getElementById('template-tags').value = template.tags || '';
+    
+    document.getElementById('template-modal').style.display = 'block';
+    updateModeFields();
+}
+
+function closeTemplateModal() {
+    document.getElementById('template-modal').style.display = 'none';
+}
+
+function updateModeFields() {
+    const mode = document.getElementById('template-mode').value;
+    document.getElementById('artist2-group').style.display = ['collab', 'battle'].includes(mode) ? 'block' : 'none';
+    document.getElementById('vibe-group').style.display = mode === 'vibe' ? 'block' : 'none';
+}
+
+document.getElementById('template-mode').addEventListener('change', updateModeFields);
+
+async function saveTemplate(event) {
+    event.preventDefault();
+    
+    const id = document.getElementById('template-id').value;
+    const data = {
+        name: document.getElementById('template-name').value,
+        mode: document.getElementById('template-mode').value,
+        artist: document.getElementById('template-artist').value,
+        artist2: document.getElementById('template-artist2').value,
+        vibe: document.getElementById('template-vibe').value,
+        quality: document.getElementById('template-quality').value,
+        duration: parseInt(document.getElementById('template-duration').value),
+        steps: parseInt(document.getElementById('template-steps').value),
+        tags: document.getElementById('template-tags').value
+    };
+    
+    let response;
+    if (id) {
+        response = await fetch(`/api/templates/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+    } else {
+        response = await fetch('/api/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+    }
+    
+    if (response.ok) {
+        closeTemplateModal();
+        loadTemplates();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to save');
+    }
+}
+
+async function deleteTemplate(id, name) {
+    if (!confirm(`Delete template "${name}"?`)) return;
+    
+    const response = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
+    if (response.ok) {
+        loadTemplates();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to delete');
+    }
+}
+
+document.getElementById('template-modal').addEventListener('click', e => { if (e.target.id === 'template-modal') closeTemplateModal(); });
+
+loadArtists().then(loadTemplates);
+</script>
+{% endblock %}

@@ -3,9 +3,19 @@
 {% block title %}Dashboard - Music Planner{% endblock %}
 
 {% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="flash-messages">
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
 <div class="page-header">
     <h1 class="page-title">Dashboard</h1>
-    <p class="page-subtitle">Welcome to Music Planner — AI-powered music generation</p>
+    <p class="page-subtitle">Welcome back, {{ current_user.username }}! 🎵</p>
 </div>
 
 <div class="stats-grid" id="stats">
@@ -20,6 +30,18 @@
     <div class="stat-card">
         <div class="stat-value" id="stat-genres">-</div>
         <div class="stat-label">Genre Guides</div>
+    </div>
+</div>
+
+<div id="import-banner" class="card" style="margin-bottom: 24px; display: none; background: var(--bg-tertiary);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <h3 style="margin-bottom: 8px; font-weight: 600;">📦 Import Existing Data</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Found existing songs and artists. Import them to your account?</p>
+        </div>
+        <form action="/migrate" method="POST" style="margin: 0;">
+            <button type="submit" class="btn btn-primary btn-sm">Import Data</button>
+        </form>
     </div>
 </div>
 
@@ -54,6 +76,11 @@ async function loadDashboard() {
     document.getElementById('stat-songs').textContent = stats.songs;
     document.getElementById('stat-artists').textContent = stats.artists;
     document.getElementById('stat-genres').textContent = stats.genres;
+    
+    // Show import banner if user has no songs but there's legacy data
+    if (stats.songs === 0 && stats.hasLegacyData) {
+        document.getElementById('import-banner').style.display = 'block';
+    }
     
     // Load recent songs
     const songs = await fetch('/api/songs').then(r => r.json());

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Search - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🔎 Search</h1>
+    <p class="page-subtitle">Find songs, artists, and users</p>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; gap: 12px;">
+        <input type="text" id="search-input" class="form-input" placeholder="Search for anything..." style="flex: 1;">
+        <select id="search-type" class="form-select" style="width: 150px;">
+            <option value="all">All</option>
+            <option value="songs">Songs</option>
+            <option value="artists">Artists</option>
+            <option value="users">Users</option>
+        </select>
+        <button onclick="performSearch()" class="btn btn-primary">🔍 Search</button>
+    </div>
+    
+    <div style="margin-top: 16px;">
+        <label class="form-label">Or search by tags:</label>
+        <div style="display: flex; gap: 12px;">
+            <input type="text" id="tags-input" class="form-input" placeholder="tag1, tag2, tag3..." style="flex: 1;">
+            <button onclick="searchByTags()" class="btn btn-secondary">🏷️ Search Tags</button>
+        </div>
+    </div>
+</div>
+
+<div id="results-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('search-input').addEventListener('keypress', e => {
+    if (e.key === 'Enter') performSearch();
+});
+
+async function performSearch() {
+    const query = document.getElementById('search-input').value.trim();
+    const type = document.getElementById('search-type').value;
+    
+    if (!query) return;
+    
+    const results = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=${type}`).then(r => r.json());
+    displayResults(results);
+}
+
+async function searchByTags() {
+    const tags = document.getElementById('tags-input').value.trim();
+    if (!tags) return;
+    
+    const songs = await fetch(`/api/search/tags?tags=${encodeURIComponent(tags)}`).then(r => r.json());
+    displayResults({ songs, artists: [], users: [] });
+}
+
+function displayResults(results) {
+    const container = document.getElementById('results-container');
+    let html = '';
+    
+    if (results.songs && results.songs.length > 0) {
+        html += `
+            <div class="card" style="margin-bottom: 24px;">
+                <h3 style="margin-bottom: 16px;">🎶 Songs (${results.songs.length})</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Artist</th><th>Concept</th><th>Rating</th></tr>
+                    </thead>
+                    <tbody>
+                        ${results.songs.map(s => `
+                            <tr style="cursor: pointer;" onclick="window.location='/songs?highlight=${s.id}'">
+                                <td><strong>${s.artist}</strong></td>
+                                <td style="color: var(--text-secondary);">${(s.concept || '').substring(0, 50)}</td>
+                                <td>${'⭐'.repeat(s.rating || 0) || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    if (results.artists && results.artists.length > 0) {
+        html += `
+            <div class="card" style="margin-bottom: 24px;">
+                <h3 style="margin-bottom: 16px;">🎤 Artists (${results.artists.length})</h3>
+                <div class="card-grid">
+                    ${results.artists.map(a => `
+                        <div class="artist-card">
+                            <div class="artist-name">${a.name}</div>
+                            <div class="artist-personality">${a.style || '-'}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (results.users && results.users.length > 0) {
+        html += `
+            <div class="card">
+                <h3 style="margin-bottom: 16px;">👥 Users (${results.users.length})</h3>
+                ${results.users.map(u => `
+                    <div style="padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <a href="/u/${u.username}" style="color: var(--accent); font-weight: 600;">@${u.username}</a>
+                            ${u.display_name ? `<span style="color: var(--text-muted);"> · ${u.display_name}</span>` : ''}
+                            ${u.bio ? `<p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">${u.bio.substring(0, 100)}</p>` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    if (!html) {
+        html = '<div class="card"><p style="color: var(--text-muted); text-align: center; padding: 40px;">No results found</p></div>';
+    }
+    
+    container.innerHTML = html;
+}
+</script>
+{% endblock %}

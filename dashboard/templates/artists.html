@@ -11,11 +11,24 @@
     <a href="/create" class="btn btn-primary">➕ New Artist</a>
 </div>
 
-<div class="card-grid" id="artists-container">
-    <div class="loading"><div class="spinner"></div></div>
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table class="data-table" id="artists-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Style</th>
+                <th>Voice</th>
+                <th>Type</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="artists-body">
+            <tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>
+        </tbody>
+    </table>
 </div>
 
-<!-- Artist Detail Modal -->
+<!-- View Artist Modal -->
 <div id="artist-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 40px; overflow-y: auto;">
     <div style="max-width: 700px; margin: 0 auto;">
         <div class="card">
@@ -27,31 +40,84 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Artist Modal -->
+<div id="edit-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1001; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 style="font-size: 24px;">✏️ Edit Artist</h2>
+                <button onclick="closeEditModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <form id="edit-artist-form" onsubmit="saveArtist(event)">
+                <input type="hidden" id="edit-filename">
+                
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="edit-name" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Style / Personality</label>
+                    <input type="text" id="edit-style" class="form-input" placeholder="e.g., dreamy, ethereal, introspective">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Voice Type</label>
+                    <input type="text" id="edit-voice" class="form-input" placeholder="e.g., female, airy, breathy">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Tags</label>
+                    <input type="text" id="edit-tags" class="form-input" placeholder="e.g., pop, synth, ambient, 120 bpm">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="edit-description" class="form-textarea" rows="4"></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 async function loadArtists() {
     const artists = await fetch('/api/artists').then(r => r.json());
-    const container = document.getElementById('artists-container');
+    const tbody = document.getElementById('artists-body');
     
-    container.innerHTML = artists.map(artist => {
-        const genres = artist.genres ? artist.genres.slice(0, 2).join(', ') : '';
+    if (artists.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><h3>No artists yet</h3><p>Create your first AI artist!</p></td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = artists.map(artist => {
+        const isSystem = artist.is_system === true;
+        const name = artist.name || artist.filename;
+        const style = artist.style || artist.personality || '-';
+        const voice = artist.voice || artist.vocal_gender || '-';
+        
         return `
-            <div class="artist-card" onclick="showArtist('${artist.filename}')" style="cursor: pointer;">
-                <div class="artist-name">${artist.name || artist.filename}</div>
-                <div class="artist-personality">${artist.personality || 'AI Artist'}</div>
-                <div style="margin: 12px 0; color: var(--text-secondary); font-size: 13px;">
-                    ${artist.mood || ''}
-                </div>
-                <div class="artist-meta">
-                    <span class="artist-tag energy-${artist.energy || 'medium'}">
-                        ${artist.energy || 'medium'}
-                    </span>
-                    <span class="artist-tag">${artist.vocal_gender || '—'}</span>
-                    ${genres ? `<span class="artist-tag">${genres}</span>` : ''}
-                </div>
-            </div>
+            <tr>
+                <td><strong>${name}</strong></td>
+                <td style="color: var(--text-secondary);">${style}</td>
+                <td style="color: var(--text-secondary);">${voice}</td>
+                <td>${isSystem ? '<span class="tag">system</span>' : '<span class="tag custom">custom</span>'}</td>
+                <td class="actions">
+                    <button onclick="showArtist('${artist.filename}')" class="btn btn-secondary btn-sm">👁️ View</button>
+                    ${!isSystem ? `
+                        <button onclick="editArtist('${artist.filename}')" class="btn btn-secondary btn-sm" style="background: var(--accent);">✏️ Edit</button>
+                        <button onclick="deleteArtist('${artist.filename}', '${name.replace(/'/g, "\\'")}')" class="btn btn-secondary btn-sm" style="background: var(--error);">🗑️</button>
+                    ` : ''}
+                </td>
+            </tr>
         `;
     }).join('');
 }
@@ -61,53 +127,42 @@ async function showArtist(filename) {
     
     document.getElementById('modal-artist-name').textContent = artist.name || filename;
     
-    const themes = artist.themes ? artist.themes.map(t => `<span class="artist-tag">${t}</span>`).join(' ') : '';
-    const instruments = artist.instruments ? artist.instruments.join(', ') : '';
+    const isSystem = artist.is_system === true;
+    const themes = artist.themes ? artist.themes.map(t => `<span class="tag">${t}</span>`).join(' ') : '-';
+    const instruments = artist.instruments ? artist.instruments.join(', ') : '-';
+    const tags = artist.signature_tags || artist.tags || '-';
     
     document.getElementById('modal-content').innerHTML = `
         <div style="display: grid; gap: 20px;">
-            <div>
-                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Personality</div>
-                <div>${artist.personality || '—'}</div>
-            </div>
+            ${!isSystem ? '<div><span class="tag custom">✨ Custom Artist</span></div>' : ''}
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div>
-                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Mood</div>
-                    <div>${artist.mood || '—'}</div>
-                </div>
-                <div>
-                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Energy</div>
-                    <div>${artist.energy || '—'}</div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Style</div>
+                    <div>${artist.style || artist.personality || '-'}</div>
                 </div>
                 <div>
                     <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Voice</div>
-                    <div>${artist.vocal_gender || '—'}</div>
+                    <div>${artist.voice || artist.vocal_gender || '-'}</div>
                 </div>
             </div>
             
             <div>
-                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Genres</div>
-                <div>${(artist.genres || []).join(', ')}</div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Tags</div>
+                <div class="genre-tags" style="font-size: 13px;">${tags}</div>
             </div>
             
             <div>
-                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Instruments</div>
-                <div>${instruments || '—'}</div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Description</div>
+                <div style="color: var(--text-secondary);">${artist.description || artist.body || '-'}</div>
             </div>
             
-            <div>
-                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Themes</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">${themes || '—'}</div>
-            </div>
-            
-            <div>
-                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Signature Tags</div>
-                <div class="genre-tags">${artist.signature_tags || '—'}</div>
-            </div>
-            
-            <div style="margin-top: 12px;">
-                <a href="/generate?artist=${filename}" class="btn btn-primary">🎵 Generate Song with ${artist.name || filename}</a>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px;">
+                <a href="/generate?artist=${filename}" class="btn btn-primary">🎵 Generate Song</a>
+                ${!isSystem ? `
+                    <button onclick="closeModal(); editArtist('${filename}');" class="btn btn-secondary" style="background: var(--accent);">✏️ Edit</button>
+                    <button onclick="deleteArtist('${filename}', '${(artist.name || filename).replace(/'/g, "\\'")}'); closeModal();" class="btn btn-secondary" style="background: var(--error);">🗑️ Delete</button>
+                ` : ''}
             </div>
         </div>
     `;
@@ -119,9 +174,70 @@ function closeModal() {
     document.getElementById('artist-modal').style.display = 'none';
 }
 
-document.getElementById('artist-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'artist-modal') closeModal();
-});
+async function editArtist(filename) {
+    const artist = await fetch(`/api/artists/${filename}`).then(r => r.json());
+    
+    if (artist.is_system) {
+        alert('Cannot edit system artists');
+        return;
+    }
+    
+    document.getElementById('edit-filename').value = filename;
+    document.getElementById('edit-name').value = artist.name || '';
+    document.getElementById('edit-style').value = artist.style || artist.personality || '';
+    document.getElementById('edit-voice').value = artist.voice || artist.vocal_gender || '';
+    document.getElementById('edit-tags').value = artist.tags || artist.signature_tags || '';
+    document.getElementById('edit-description').value = artist.description || artist.body || '';
+    
+    document.getElementById('edit-modal').style.display = 'block';
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').style.display = 'none';
+}
+
+async function saveArtist(event) {
+    event.preventDefault();
+    
+    const filename = document.getElementById('edit-filename').value;
+    const data = {
+        name: document.getElementById('edit-name').value,
+        style: document.getElementById('edit-style').value,
+        voice: document.getElementById('edit-voice').value,
+        tags: document.getElementById('edit-tags').value,
+        description: document.getElementById('edit-description').value
+    };
+    
+    const response = await fetch(`/api/artists/${filename}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    
+    if (response.ok) {
+        closeEditModal();
+        closeModal();
+        loadArtists();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to save');
+    }
+}
+
+async function deleteArtist(filename, name) {
+    if (!confirm(`Delete artist "${name}"?`)) return;
+    
+    const response = await fetch(`/api/artists/${filename}`, { method: 'DELETE' });
+    if (response.ok) {
+        loadArtists();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to delete');
+    }
+}
+
+document.getElementById('artist-modal').addEventListener('click', e => { if (e.target.id === 'artist-modal') closeModal(); });
+document.getElementById('edit-modal').addEventListener('click', e => { if (e.target.id === 'edit-modal') closeEditModal(); });
 
 loadArtists();
 </script>

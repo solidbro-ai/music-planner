@@ -3,13 +3,43 @@
 {% block title %}Songs - Music Planner{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">Songs</h1>
-    <p class="page-subtitle">Browse all generated songs</p>
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">Songs</h1>
+        <p class="page-subtitle">Your generated music library</p>
+    </div>
+    <a href="/generate" class="btn btn-primary">✨ Generate New</a>
 </div>
 
-<div class="card-grid" id="songs-container">
-    <div class="loading"><div class="spinner"></div></div>
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table class="data-table" id="songs-table">
+        <thead>
+            <tr>
+                <th>Artist</th>
+                <th>Concept</th>
+                <th>Mode</th>
+                <th>Rating</th>
+                <th>Date</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="songs-body">
+            <tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Song Detail Modal -->
+<div id="song-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="modal-song-title" style="font-size: 24px;"></h2>
+                <button onclick="closeSongModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <div id="song-modal-content"></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -17,47 +47,325 @@
 <script>
 async function loadSongs() {
     const songs = await fetch('/api/songs').then(r => r.json());
-    const container = document.getElementById('songs-container');
+    const tbody = document.getElementById('songs-body');
     
     if (songs.length === 0) {
-        container.innerHTML = `
-            <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
-                <h3 style="margin-bottom: 16px;">No songs yet</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 24px;">Generate your first AI song</p>
-                <a href="/generate" class="btn btn-primary">✨ Generate Song</a>
-            </div>
-        `;
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><h3>No songs yet</h3><p><a href="/generate" style="color: var(--accent);">Generate your first song!</a></p></td></tr>';
         return;
     }
     
-    container.innerHTML = songs.map(song => {
-        const filename = song.file ? song.file.split('/').pop() : '';
+    tbody.innerHTML = songs.map(song => {
+        const concept = song.concept ? (song.concept.length > 50 ? song.concept.substring(0, 50) + '...' : song.concept) : '-';
+        const date = song.created_at ? song.created_at.split(' ')[0] : '-';
+        const stars = '⭐'.repeat(song.rating || 0) || '-';
+        
         return `
-            <div class="song-card">
-                <div class="song-header">
-                    <div class="song-id">#${song.id} · ${song.mode || 'standard'}</div>
-                    <div class="song-artist">${song.artist}</div>
-                    <div class="song-concept">${song.concept}</div>
-                </div>
-                ${song.file_exists ? `
-                    <div class="song-player">
-                        <audio controls preload="none">
-                            <source src="/api/audio/${filename}" type="audio/mpeg">
-                        </audio>
-                    </div>
-                ` : `
-                    <div style="padding: 16px 20px; background: var(--bg-tertiary); color: var(--text-muted); font-size: 13px;">
-                        ⚠️ Audio file not found
-                    </div>
-                `}
-                <div class="song-meta">
-                    <span>📅 ${song.date}</span>
-                    <span>🕐 ${song.time}</span>
-                </div>
-            </div>
+            <tr>
+                <td><strong>${song.artist || '-'}</strong></td>
+                <td style="color: var(--text-secondary);">${concept}</td>
+                <td><span class="tag">${song.mode || 'standard'}</span></td>
+                <td>${stars}</td>
+                <td style="color: var(--text-muted);">${date}</td>
+                <td class="actions">
+                    <button onclick="showSong(${song.id})" class="btn btn-secondary btn-sm">👁️ View</button>
+                    ${song.file_exists ? `<button onclick="playSong('${song.file.split('/').pop()}')" class="btn btn-secondary btn-sm" style="background: var(--success);">▶️ Play</button>` : ''}
+                    <button onclick="deleteSong(${song.id})" class="btn btn-secondary btn-sm" style="background: var(--error);">🗑️</button>
+                </td>
+            </tr>
         `;
     }).join('');
 }
+
+let currentAudio = null;
+
+function playSong(filename) {
+    if (currentAudio) {
+        currentAudio.pause();
+    }
+    currentAudio = new Audio(`/api/audio/${filename}`);
+    currentAudio.play();
+}
+
+async function showSong(songId) {
+    const songs = await fetch('/api/songs').then(r => r.json());
+    const song = songs.find(s => s.id === songId);
+    
+    if (!song) {
+        alert('Song not found');
+        return;
+    }
+    
+    document.getElementById('modal-song-title').textContent = `${song.artist || 'Unknown'} - ${song.concept ? song.concept.substring(0, 40) : 'Untitled'}`;
+    
+    const filename = song.file ? song.file.split('/').pop() : null;
+    const lyrics = song.lyrics || 'No lyrics available';
+    
+    // Load tags for this song
+    const songTags = await fetch(`/api/songs/${songId}/tags`).then(r => r.json());
+    const playlists = await fetch('/api/playlists').then(r => r.json());
+    
+    document.getElementById('song-modal-content').innerHTML = `
+        <div style="display: grid; gap: 24px;">
+            ${song.file_exists && filename ? `
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Audio</div>
+                    <audio controls style="width: 100%;" onplay="recordPlay(${song.id})">
+                        <source src="/api/audio/${filename}" type="audio/mpeg">
+                    </audio>
+                </div>
+            ` : '<div class="alert alert-warning">Audio file not found</div>'}
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px;">
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Artist</div>
+                    <div>${song.artist || '-'}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Mode</div>
+                    <div><span class="tag">${song.mode || 'standard'}</span></div>
+                </div>
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Visibility</div>
+                    <button onclick="toggleVisibility(${song.id})" class="btn btn-secondary btn-sm" id="visibility-btn-${song.id}">
+                        ${song.is_public ? '🌐 Public' : '🔒 Private'}
+                    </button>
+                </div>
+                <div>
+                    <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Rating</div>
+                    <div class="rating-stars" data-song-id="${song.id}">
+                        ${[1,2,3,4,5].map(i => `<span onclick="rateSong(${song.id}, ${i})" style="cursor: pointer; font-size: 20px;">${i <= (song.rating || 0) ? '⭐' : '☆'}</span>`).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Concept</div>
+                <div style="color: var(--text-secondary);">${song.concept || '-'}</div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Generation Tags</div>
+                <div class="genre-tags" style="font-size: 13px;">${song.tags || '-'}</div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Custom Tags</div>
+                <div id="custom-tags-${song.id}" style="margin-bottom: 8px;">
+                    ${songTags.map(t => `<span class="tag" style="margin-right: 4px;">#${t} <span onclick="removeTag(${song.id}, '${t}')" style="cursor: pointer; margin-left: 4px;">×</span></span>`).join('') || '<span style="color: var(--text-muted);">No custom tags</span>'}
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="new-tag-${song.id}" class="form-input" placeholder="Add tag..." style="flex: 1; padding: 8px;">
+                    <button onclick="addTag(${song.id})" class="btn btn-secondary btn-sm">Add</button>
+                </div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Add to Playlist</div>
+                <div style="display: flex; gap: 8px;">
+                    <select id="playlist-select-${song.id}" class="form-select" style="flex: 1;">
+                        <option value="">Select playlist...</option>
+                        ${playlists.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                    </select>
+                    <button onclick="addToPlaylist(${song.id})" class="btn btn-secondary btn-sm">Add</button>
+                </div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Lyrics</div>
+                <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 10px; white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size: 13px; max-height: 300px; overflow-y: auto; color: var(--text-secondary);">${lyrics}</div>
+            </div>
+            
+            ${song.is_public ? `
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Comments</div>
+                <div id="comments-${song.id}" style="max-height: 200px; overflow-y: auto; margin-bottom: 12px;">Loading...</div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="comment-input-${song.id}" class="form-input" placeholder="Add a comment..." style="flex: 1;">
+                    <button onclick="addComment(${song.id})" class="btn btn-secondary btn-sm">💬 Post</button>
+                </div>
+            </div>
+            ` : ''}
+            
+            <div style="display: flex; gap: 12px; justify-content: space-between; flex-wrap: wrap;">
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="styleTransfer(${song.id})" class="btn btn-secondary">🎨 Style Transfer</button>
+                    <button onclick="extendSong(${song.id})" class="btn btn-secondary">➕ Extend Song</button>
+                </div>
+                <button onclick="deleteSong(${song.id}); closeSongModal();" class="btn btn-secondary" style="background: var(--error);">🗑️ Delete Song</button>
+            </div>
+        </div>
+    `;
+    
+    // Load comments if public
+    if (song.is_public) {
+        loadComments(song.id);
+    }
+    
+    document.getElementById('song-modal').style.display = 'block';
+}
+
+function closeSongModal() {
+    document.getElementById('song-modal').style.display = 'none';
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+    }
+}
+
+async function rateSong(songId, rating) {
+    await fetch(`/api/songs/${songId}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating })
+    });
+    
+    // Update stars display
+    const container = document.querySelector(`.rating-stars[data-song-id="${songId}"]`);
+    if (container) {
+        container.innerHTML = [1,2,3,4,5].map(i => 
+            `<span onclick="rateSong(${songId}, ${i})" style="cursor: pointer; font-size: 20px;">${i <= rating ? '⭐' : '☆'}</span>`
+        ).join('');
+    }
+    
+    loadSongs(); // Refresh table
+}
+
+async function deleteSong(songId) {
+    if (!confirm('Delete this song?')) return;
+    
+    const response = await fetch(`/api/songs/${songId}`, { method: 'DELETE' });
+    if (response.ok) {
+        loadSongs();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to delete');
+    }
+}
+
+async function toggleVisibility(songId) {
+    const btn = document.getElementById(`visibility-btn-${songId}`);
+    const isPublic = btn.textContent.includes('Public');
+    
+    await fetch(`/api/songs/${songId}/visibility`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({is_public: !isPublic})
+    });
+    
+    btn.textContent = !isPublic ? '🌐 Public' : '🔒 Private';
+}
+
+async function addTag(songId) {
+    const input = document.getElementById(`new-tag-${songId}`);
+    const tag = input.value.trim();
+    if (!tag) return;
+    
+    await fetch(`/api/songs/${songId}/tags`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tag})
+    });
+    
+    input.value = '';
+    showSong(songId); // Refresh modal
+}
+
+async function removeTag(songId, tag) {
+    await fetch(`/api/songs/${songId}/tags/${encodeURIComponent(tag)}`, {method: 'DELETE'});
+    showSong(songId); // Refresh modal
+}
+
+async function addToPlaylist(songId) {
+    const select = document.getElementById(`playlist-select-${songId}`);
+    const playlistId = select.value;
+    if (!playlistId) return;
+    
+    const response = await fetch(`/api/playlists/${playlistId}/songs`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({song_id: songId})
+    });
+    
+    if (response.ok) {
+        alert('Added to playlist!');
+    } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to add');
+    }
+}
+
+async function recordPlay(songId) {
+    await fetch('/api/stats/record-play', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({song_id: songId})
+    });
+}
+
+async function styleTransfer(songId) {
+    const artist = prompt('Enter the artist name to transfer style to:');
+    if (!artist) return;
+    
+    const response = await fetch(`/api/songs/${songId}/style-transfer`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({artist})
+    });
+    
+    const data = await response.json();
+    alert(data.message || 'Style transfer initiated!');
+}
+
+async function extendSong(songId) {
+    const type = prompt('What to add? (verse, chorus, bridge, outro):', 'verse');
+    if (!type) return;
+    
+    const response = await fetch(`/api/songs/${songId}/extend`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type})
+    });
+    
+    const data = await response.json();
+    alert(data.message || 'Extension queued!');
+}
+
+async function loadComments(songId) {
+    const comments = await fetch(`/api/songs/${songId}/comments`).then(r => r.json());
+    const container = document.getElementById(`comments-${songId}`);
+    
+    if (comments.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted);">No comments yet. Be the first!</p>';
+        return;
+    }
+    
+    container.innerHTML = comments.map(c => `
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between;">
+                <strong style="color: var(--accent);">@${c.username}</strong>
+                <span style="color: var(--text-muted); font-size: 11px;">${new Date(c.created_at).toLocaleDateString()}</span>
+            </div>
+            <p style="margin-top: 4px; color: var(--text-secondary);">${c.content}</p>
+        </div>
+    `).join('');
+}
+
+async function addComment(songId) {
+    const input = document.getElementById(`comment-input-${songId}`);
+    const content = input.value.trim();
+    if (!content) return;
+    
+    await fetch(`/api/songs/${songId}/comments`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content})
+    });
+    
+    input.value = '';
+    loadComments(songId);
+}
+
+document.getElementById('song-modal').addEventListener('click', e => { if (e.target.id === 'song-modal') closeSongModal(); });
 
 loadSongs();
 </script>

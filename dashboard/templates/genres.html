@@ -6,13 +6,75 @@
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
     <div>
         <h1 class="page-title">Genres</h1>
-        <p class="page-subtitle">Genre guides for better song generation</p>
+        <p class="page-subtitle">Style guides and tag presets</p>
     </div>
-    <a href="/create" class="btn btn-primary">➕ New Genre</a>
+    <button onclick="showCreateGenre()" class="btn btn-primary">➕ New Genre</button>
 </div>
 
-<div class="card-grid" id="genres-container">
-    <div class="loading"><div class="spinner"></div></div>
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table class="data-table" id="genres-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Tags Preview</th>
+                <th>Type</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="genres-body">
+            <tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- View Genre Modal -->
+<div id="genre-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 700px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="modal-genre-title" style="font-size: 24px;"></h2>
+                <button onclick="closeGenreModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <div id="genre-modal-content"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Genre Modal -->
+<div id="edit-genre-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1001; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 id="edit-genre-title" style="font-size: 24px;">New Genre</h2>
+                <button onclick="closeEditGenreModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <form id="edit-genre-form" onsubmit="saveGenre(event)">
+                <input type="hidden" id="genre-filename">
+                <input type="hidden" id="genre-is-new" value="true">
+                
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="genre-name" class="form-input" required placeholder="e.g., Lo-Fi Hip Hop">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Tags</label>
+                    <textarea id="genre-tags" class="form-textarea" rows="4" placeholder="lo-fi, hip hop, chill, vinyl crackle, mellow, jazzy samples, 85 bpm"></textarea>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Comma-separated tags that define this genre's sound</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description / Notes</label>
+                    <textarea id="genre-description" class="form-textarea" rows="4" placeholder="Additional details about this genre..."></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" onclick="closeEditGenreModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Save Genre</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -20,29 +82,158 @@
 <script>
 async function loadGenres() {
     const genres = await fetch('/api/genres').then(r => r.json());
-    const container = document.getElementById('genres-container');
+    const tbody = document.getElementById('genres-body');
     
     if (genres.length === 0) {
-        container.innerHTML = `
-            <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
-                <h3 style="margin-bottom: 16px;">No genre guides yet</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 24px;">Create guides for better song generation</p>
-                <a href="/create" class="btn btn-primary">➕ Create Genre Guide</a>
-            </div>
-        `;
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><h3>No genres yet</h3><p>Create your first genre preset!</p></td></tr>';
         return;
     }
     
-    container.innerHTML = genres.map(genre => `
-        <div class="genre-card">
-            <div class="genre-title">${genre.title}</div>
-            <div class="genre-tags">${genre.tags || 'No tags defined'}</div>
-            <div style="margin-top: 16px;">
-                <span style="color: var(--text-muted); font-size: 12px;">📁 ${genre.filename}.md</span>
+    tbody.innerHTML = genres.map(genre => {
+        const isSystem = genre.is_system === true;
+        const tags = genre.tags ? (genre.tags.length > 60 ? genre.tags.substring(0, 60) + '...' : genre.tags) : '-';
+        
+        return `
+            <tr>
+                <td><strong>${genre.title || genre.filename}</strong></td>
+                <td style="color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 12px;">${tags}</td>
+                <td>${isSystem ? '<span class="tag">system</span>' : '<span class="tag custom">custom</span>'}</td>
+                <td class="actions">
+                    <button onclick="showGenre('${genre.filename}')" class="btn btn-secondary btn-sm">👁️ View</button>
+                    ${!isSystem ? `
+                        <button onclick="editGenre('${genre.filename}')" class="btn btn-secondary btn-sm" style="background: var(--accent);">✏️ Edit</button>
+                        <button onclick="deleteGenre('${genre.filename}', '${(genre.title || genre.filename).replace(/'/g, "\\'")}')" class="btn btn-secondary btn-sm" style="background: var(--error);">🗑️</button>
+                    ` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function showGenre(filename) {
+    const genre = await fetch(`/api/genres/${filename}`).then(r => r.json());
+    
+    document.getElementById('modal-genre-title').textContent = genre.title || filename;
+    
+    const isSystem = genre.is_system === true;
+    
+    document.getElementById('genre-modal-content').innerHTML = `
+        <div style="display: grid; gap: 20px;">
+            ${!isSystem ? '<div><span class="tag custom">✨ Custom Genre</span></div>' : ''}
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Tags</div>
+                <div class="genre-tags" style="font-size: 13px; background: var(--bg-tertiary); padding: 12px; border-radius: 8px;">${genre.tags || '-'}</div>
+            </div>
+            
+            <div>
+                <div style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Description</div>
+                <div style="color: var(--text-secondary); white-space: pre-wrap;">${genre.content || '-'}</div>
+            </div>
+            
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px;">
+                <button onclick="copyTags('${(genre.tags || '').replace(/'/g, "\\'")}')" class="btn btn-primary">📋 Copy Tags</button>
+                ${!isSystem ? `
+                    <button onclick="closeGenreModal(); editGenre('${filename}');" class="btn btn-secondary" style="background: var(--accent);">✏️ Edit</button>
+                    <button onclick="deleteGenre('${filename}', '${(genre.title || filename).replace(/'/g, "\\'")}'); closeGenreModal();" class="btn btn-secondary" style="background: var(--error);">🗑️ Delete</button>
+                ` : ''}
             </div>
         </div>
-    `).join('');
+    `;
+    
+    document.getElementById('genre-modal').style.display = 'block';
 }
+
+function closeGenreModal() {
+    document.getElementById('genre-modal').style.display = 'none';
+}
+
+function copyTags(tags) {
+    navigator.clipboard.writeText(tags);
+    alert('Tags copied to clipboard!');
+}
+
+function showCreateGenre() {
+    document.getElementById('edit-genre-title').textContent = 'New Genre';
+    document.getElementById('genre-filename').value = '';
+    document.getElementById('genre-is-new').value = 'true';
+    document.getElementById('genre-name').value = '';
+    document.getElementById('genre-tags').value = '';
+    document.getElementById('genre-description').value = '';
+    document.getElementById('edit-genre-modal').style.display = 'block';
+}
+
+async function editGenre(filename) {
+    const genre = await fetch(`/api/genres/${filename}`).then(r => r.json());
+    
+    if (genre.is_system) {
+        alert('Cannot edit system genres');
+        return;
+    }
+    
+    document.getElementById('edit-genre-title').textContent = '✏️ Edit Genre';
+    document.getElementById('genre-filename').value = filename;
+    document.getElementById('genre-is-new').value = 'false';
+    document.getElementById('genre-name').value = genre.title || '';
+    document.getElementById('genre-tags').value = genre.tags || '';
+    document.getElementById('genre-description').value = genre.content || '';
+    document.getElementById('edit-genre-modal').style.display = 'block';
+}
+
+function closeEditGenreModal() {
+    document.getElementById('edit-genre-modal').style.display = 'none';
+}
+
+async function saveGenre(event) {
+    event.preventDefault();
+    
+    const isNew = document.getElementById('genre-is-new').value === 'true';
+    const filename = document.getElementById('genre-filename').value;
+    const data = {
+        name: document.getElementById('genre-name').value,
+        tags: document.getElementById('genre-tags').value,
+        description: document.getElementById('genre-description').value
+    };
+    
+    let response;
+    if (isNew) {
+        response = await fetch('/api/genres', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+    } else {
+        response = await fetch(`/api/genres/${filename}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+    }
+    
+    if (response.ok) {
+        closeEditGenreModal();
+        closeGenreModal();
+        loadGenres();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to save');
+    }
+}
+
+async function deleteGenre(filename, name) {
+    if (!confirm(`Delete genre "${name}"?`)) return;
+    
+    const response = await fetch(`/api/genres/${filename}`, { method: 'DELETE' });
+    if (response.ok) {
+        loadGenres();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to delete');
+    }
+}
+
+document.getElementById('genre-modal').addEventListener('click', e => { if (e.target.id === 'genre-modal') closeGenreModal(); });
+document.getElementById('edit-genre-modal').addEventListener('click', e => { if (e.target.id === 'edit-genre-modal') closeEditGenreModal(); });
 
 loadGenres();
 </script>

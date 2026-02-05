@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Discover - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🔍 Discover</h1>
+    <p class="page-subtitle">Explore public songs and creators</p>
+</div>
+
+<div style="margin-bottom: 24px;">
+    <div class="mode-selector">
+        <button class="mode-btn active" onclick="showTab('songs')">🎶 Songs</button>
+        <button class="mode-btn" onclick="showTab('users')">👥 Creators</button>
+    </div>
+</div>
+
+<div id="songs-tab">
+    <div class="card-grid" id="discover-songs">
+        <div class="loading"><div class="spinner"></div></div>
+    </div>
+</div>
+
+<div id="users-tab" style="display: none;">
+    <div class="card-grid" id="discover-users">
+        <div class="loading"><div class="spinner"></div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(tab) {
+    document.querySelectorAll('.mode-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', (tab === 'songs' && i === 0) || (tab === 'users' && i === 1));
+    });
+    document.getElementById('songs-tab').style.display = tab === 'songs' ? 'block' : 'none';
+    document.getElementById('users-tab').style.display = tab === 'users' ? 'block' : 'none';
+}
+
+async function loadDiscoverSongs() {
+    const songs = await fetch('/api/discover/songs').then(r => r.json());
+    const container = document.getElementById('discover-songs');
+    
+    if (songs.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;"><h3>No public songs yet</h3><p>Be the first to share your music!</p></div>';
+        return;
+    }
+    
+    container.innerHTML = songs.map(s => `
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h4 style="margin-bottom: 4px;">${s.artist}</h4>
+                    <p style="color: var(--text-secondary); font-size: 13px;">${(s.concept || 'Untitled').substring(0, 50)}</p>
+                </div>
+                <span style="color: var(--accent);">❤️ ${s.like_count || 0}</span>
+            </div>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+                <a href="/u/${s.owner}" style="color: var(--text-muted); font-size: 12px;">by @${s.owner}</a>
+            </div>
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button onclick="likeSong(${s.id}, this)" class="btn btn-secondary btn-sm">❤️ Like</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function loadDiscoverUsers() {
+    const users = await fetch('/api/discover/users').then(r => r.json());
+    const container = document.getElementById('discover-users');
+    
+    if (users.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;"><h3>No public profiles yet</h3></div>';
+        return;
+    }
+    
+    container.innerHTML = users.map(u => `
+        <div class="card">
+            <div style="display: flex; gap: 16px; align-items: flex-start;">
+                <div style="width: 50px; height: 50px; background: var(--gradient-1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                    ${u.username[0].toUpperCase()}
+                </div>
+                <div style="flex: 1;">
+                    <h4><a href="/u/${u.username}" style="color: var(--text-primary); text-decoration: none;">@${u.username}</a></h4>
+                    ${u.display_name ? `<p style="color: var(--text-secondary);">${u.display_name}</p>` : ''}
+                    ${u.bio ? `<p style="color: var(--text-muted); font-size: 13px; margin-top: 8px;">${u.bio.substring(0, 100)}</p>` : ''}
+                </div>
+            </div>
+            <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--text-muted); font-size: 12px;">${u.followers} followers · ${u.public_songs} songs</span>
+                <button onclick="followUser(${u.id}, this)" class="btn btn-secondary btn-sm">Follow</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function likeSong(songId, btn) {
+    await fetch(`/api/songs/${songId}/like`, {method: 'POST'});
+    btn.innerHTML = '💕 Liked';
+    btn.disabled = true;
+}
+
+async function followUser(userId, btn) {
+    await fetch(`/api/follow/${userId}`, {method: 'POST'});
+    btn.innerHTML = '✓ Following';
+    btn.disabled = true;
+}
+
+loadDiscoverSongs();
+loadDiscoverUsers();
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">👤 My Profile</h1>
+        <p class="page-subtitle">Manage your public presence</p>
+    </div>
+    <a href="/profile/edit" class="btn btn-primary">✏️ Edit Profile</a>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+    <!-- Profile Card -->
+    <div class="card" id="profile-card">
+        <div class="loading"><div class="spinner"></div></div>
+    </div>
+    
+    <!-- Badges -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">🏆 Badges</h3>
+        <div id="badges-container">
+            <div class="loading"><div class="spinner"></div></div>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">📊 Quick Stats</h3>
+        <div class="stats-grid" id="profile-stats" style="margin-bottom: 0;"></div>
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3>👥 Social</h3>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div>
+                <h4 style="color: var(--text-secondary); margin-bottom: 12px;">Followers</h4>
+                <div id="followers-list">Loading...</div>
+            </div>
+            <div>
+                <h4 style="color: var(--text-secondary); margin-bottom: 12px;">Following</h4>
+                <div id="following-list">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadProfile() {
+    const data = await fetch('/api/profile').then(r => r.json());
+    
+    // Profile card
+    document.getElementById('profile-card').innerHTML = `
+        <div style="text-align: center;">
+            <div style="width: 80px; height: 80px; background: var(--gradient-1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 16px;">
+                ${data.user.username[0].toUpperCase()}
+            </div>
+            <h2>${data.profile.display_name || data.user.username}</h2>
+            <p style="color: var(--text-muted);">@${data.user.username}</p>
+            ${data.profile.bio ? `<p style="margin-top: 12px; color: var(--text-secondary);">${data.profile.bio}</p>` : ''}
+            <div style="margin-top: 16px;">
+                ${data.profile.is_public ? '<span class="tag custom">Public Profile</span>' : '<span class="tag">Private</span>'}
+            </div>
+            ${data.profile.website ? `<a href="${data.profile.website}" target="_blank" style="display: block; margin-top: 12px; color: var(--accent);">${data.profile.website}</a>` : ''}
+            ${data.profile.location ? `<p style="margin-top: 8px; color: var(--text-muted);">📍 ${data.profile.location}</p>` : ''}
+        </div>
+    `;
+    
+    // Stats
+    const s = data.stats;
+    document.getElementById('profile-stats').innerHTML = `
+        <div class="stat-card"><div class="stat-value">${s.total_songs}</div><div class="stat-label">Songs</div></div>
+        <div class="stat-card"><div class="stat-value">${s.total_artists}</div><div class="stat-label">Artists</div></div>
+        <div class="stat-card"><div class="stat-value">${s.followers}</div><div class="stat-label">Followers</div></div>
+        <div class="stat-card"><div class="stat-value">${s.following}</div><div class="stat-label">Following</div></div>
+        <div class="stat-card"><div class="stat-value">${s.likes_received}</div><div class="stat-label">Likes</div></div>
+        <div class="stat-card"><div class="stat-value">${s.playlists}</div><div class="stat-label">Playlists</div></div>
+    `;
+    
+    // Badges
+    const badgesHtml = data.badges.length === 0 
+        ? '<p style="color: var(--text-muted);">No badges earned yet. Keep creating!</p>'
+        : data.badges.map(b => `
+            <span class="tag" style="margin: 4px; padding: 8px 12px;" title="${b.description}">
+                ${b.icon} ${b.display_name || b.name}
+            </span>
+        `).join('');
+    document.getElementById('badges-container').innerHTML = badgesHtml;
+}
+
+async function loadSocial() {
+    const [followers, following] = await Promise.all([
+        fetch('/api/followers').then(r => r.json()),
+        fetch('/api/following').then(r => r.json())
+    ]);
+    
+    document.getElementById('followers-list').innerHTML = followers.length === 0
+        ? '<p style="color: var(--text-muted);">No followers yet</p>'
+        : followers.map(f => `
+            <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <a href="/u/${f.username}" style="color: var(--accent); text-decoration: none;">@${f.username}</a>
+                ${f.display_name ? `<span style="color: var(--text-muted);"> · ${f.display_name}</span>` : ''}
+            </div>
+        `).join('');
+    
+    document.getElementById('following-list').innerHTML = following.length === 0
+        ? '<p style="color: var(--text-muted);">Not following anyone</p>'
+        : following.map(f => `
+            <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <a href="/u/${f.username}" style="color: var(--accent); text-decoration: none;">@${f.username}</a>
+                ${f.display_name ? `<span style="color: var(--text-muted);"> · ${f.display_name}</span>` : ''}
+            </div>
+        `).join('');
+}
+
+loadProfile();
+loadSocial();
+</script>
+{% endblock %}

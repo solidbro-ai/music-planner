@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Liked Songs - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">❤️ Liked Songs</h1>
+    <p class="page-subtitle">Songs you've liked from other creators</p>
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table class="data-table" id="liked-songs-table">
+        <thead>
+            <tr>
+                <th>Artist</th>
+                <th>Concept</th>
+                <th>Creator</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="liked-songs-body">
+            <tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadLikedSongs() {
+    const songs = await fetch('/api/liked-songs').then(r => r.json());
+    const tbody = document.getElementById('liked-songs-body');
+    
+    if (songs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><h3>No liked songs yet</h3><p>Explore the <a href="/discover" style="color: var(--accent);">Discover</a> page to find music you love!</p></td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = songs.map(s => `
+        <tr>
+            <td><strong>${s.artist}</strong></td>
+            <td style="color: var(--text-secondary);">${(s.concept || '').substring(0, 50)}</td>
+            <td><a href="/u/${s.owner_username}" style="color: var(--accent);">@${s.owner_username}</a></td>
+            <td class="actions">
+                <button onclick="unlikeSong(${s.id}, this)" class="btn btn-secondary btn-sm" style="background: var(--error);">💔 Unlike</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function unlikeSong(songId, btn) {
+    await fetch(`/api/songs/${songId}/like`, {method: 'DELETE'});
+    btn.closest('tr').remove();
+}
+
+loadLikedSongs();
+</script>
+{% endblock %}

@@ -33,3 +33,4 @@ env/
 
 # Misc
 nohup.out
+dashboard/music_planner.db

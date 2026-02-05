@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - Music Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">✏️ Edit Profile</h1>
+    <p class="page-subtitle">Update your public information</p>
+</div>
+
+<div class="card" style="max-width: 600px;">
+    <form id="profile-form" onsubmit="saveProfile(event)">
+        <div class="form-group">
+            <label class="form-label">Display Name</label>
+            <input type="text" id="display-name" class="form-input" placeholder="How you want to be known">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Bio</label>
+            <textarea id="bio" class="form-textarea" rows="4" placeholder="Tell people about yourself..."></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Website</label>
+            <input type="url" id="website" class="form-input" placeholder="https://yoursite.com">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Location</label>
+            <input type="text" id="location" class="form-input" placeholder="City, Country">
+        </div>
+        
+        <div class="form-group">
+            <div class="form-checkbox-group">
+                <input type="checkbox" class="form-checkbox" id="is-public">
+                <label for="is-public">Make my profile public</label>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+                Public profiles can be viewed by anyone and appear in Discover
+            </p>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+            <a href="/profile" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadProfile() {
+    const data = await fetch('/api/profile').then(r => r.json());
+    document.getElementById('display-name').value = data.profile.display_name || '';
+    document.getElementById('bio').value = data.profile.bio || '';
+    document.getElementById('website').value = data.profile.website || '';
+    document.getElementById('location').value = data.profile.location || '';
+    document.getElementById('is-public').checked = data.profile.is_public;
+}
+
+async function saveProfile(e) {
+    e.preventDefault();
+    
+    const data = {
+        display_name: document.getElementById('display-name').value,
+        bio: document.getElementById('bio').value,
+        website: document.getElementById('website').value,
+        location: document.getElementById('location').value,
+        is_public: document.getElementById('is-public').checked
+    };
+    
+    const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    
+    if (response.ok) {
+        window.location.href = '/profile';
+    } else {
+        alert('Failed to save profile');
+    }
+}
+
+loadProfile();
+</script>
+{% endblock %}

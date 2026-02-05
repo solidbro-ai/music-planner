@@ -482,10 +482,164 @@
             color: var(--success);
         }
 
-        .alert-error {
+        .alert-error, .alert-danger {
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid var(--error);
             color: var(--error);
+        }
+        
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+        
+        .alert-info {
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+        
+        /* Auth Pages */
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--bg-primary);
+        }
+        
+        .auth-card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+        }
+        
+        .auth-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .auth-logo {
+            width: 64px;
+            height: 64px;
+            background: var(--gradient-1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 16px;
+        }
+        
+        .auth-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .auth-subtitle {
+            color: var(--text-secondary);
+        }
+        
+        .auth-form .btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+        }
+        
+        .auth-footer {
+            text-align: center;
+            margin-top: 24px;
+            color: var(--text-secondary);
+        }
+        
+        .auth-footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        /* Tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .data-table th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+        
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .data-table tr:hover td {
+            background: var(--bg-tertiary);
+        }
+        
+        .data-table .actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        
+        .data-table .actions .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+        
+        .tag.custom {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 12px;
+            color: var(--text-primary);
         }
 
         /* Output Log */
@@ -547,6 +701,22 @@
                 </a>
                 
                 <div class="nav-section">
+                    <div class="nav-section-title">Library</div>
+                    <a href="/playlists" class="nav-link {% if request.path == '/playlists' %}active{% endif %}">
+                        <span class="icon">📋</span>
+                        Playlists
+                    </a>
+                    <a href="/folders" class="nav-link {% if request.path == '/folders' %}active{% endif %}">
+                        <span class="icon">📁</span>
+                        Folders
+                    </a>
+                    <a href="/liked-songs" class="nav-link {% if request.path == '/liked-songs' %}active{% endif %}">
+                        <span class="icon">❤️</span>
+                        Liked Songs
+                    </a>
+                </div>
+                
+                <div class="nav-section">
                     <div class="nav-section-title">Create</div>
                     <a href="/generate" class="nav-link {% if request.path == '/generate' %}active{% endif %}">
                         <span class="icon">✨</span>
@@ -556,7 +726,41 @@
                         <span class="icon">➕</span>
                         New Artist/Genre
                     </a>
+                    <a href="/templates" class="nav-link {% if request.path == '/templates' %}active{% endif %}">
+                        <span class="icon">📝</span>
+                        Templates
+                    </a>
                 </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Explore</div>
+                    <a href="/discover" class="nav-link {% if request.path == '/discover' %}active{% endif %}">
+                        <span class="icon">🔍</span>
+                        Discover
+                    </a>
+                    <a href="/search" class="nav-link {% if request.path == '/search' %}active{% endif %}">
+                        <span class="icon">🔎</span>
+                        Search
+                    </a>
+                </div>
+                
+                {% if current_user %}
+                <div class="nav-section">
+                    <div class="nav-section-title">Account</div>
+                    <a href="/profile" class="nav-link {% if request.path == '/profile' %}active{% endif %}">
+                        <span class="icon">👤</span>
+                        {{ current_user.username }}
+                    </a>
+                    <a href="/stats" class="nav-link {% if request.path == '/stats' %}active{% endif %}">
+                        <span class="icon">📊</span>
+                        Statistics
+                    </a>
+                    <a href="/logout" class="nav-link">
+                        <span class="icon">🚪</span>
+                        Logout
+                    </a>
+                </div>
+                {% endif %}
             </nav>
         </aside>
         

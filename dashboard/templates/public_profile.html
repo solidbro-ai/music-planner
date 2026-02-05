@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@{{ profile_user.username }} - Music Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #16161f;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --accent: #8b5cf6;
+            --border: #2a2a3a;
+            --gradient-1: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+        .profile-header { text-align: center; padding: 40px 20px; }
+        .avatar { width: 100px; height: 100px; background: var(--gradient-1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; margin: 0 auto 20px; }
+        .username { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+        .handle { color: var(--text-muted); margin-bottom: 16px; }
+        .bio { color: var(--text-secondary); max-width: 500px; margin: 0 auto; }
+        .stats { display: flex; justify-content: center; gap: 40px; margin-top: 24px; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 24px; font-weight: 700; color: var(--accent); }
+        .stat-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
+        .btn { padding: 12px 24px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; background: var(--gradient-1); color: white; }
+        .song-card { padding: 16px 0; border-bottom: 1px solid var(--border); }
+        .song-card:last-child { border-bottom: none; }
+        a { color: var(--accent); text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card profile-header">
+            <div class="avatar">{{ profile_user.username[0]|upper }}</div>
+            <h1 class="username">{{ profile.display_name or profile_user.username }}</h1>
+            <p class="handle">@{{ profile_user.username }}</p>
+            {% if profile.bio %}
+            <p class="bio">{{ profile.bio }}</p>
+            {% endif %}
+            
+            <div class="stats" id="stats"></div>
+            
+            {% if current_user and current_user.id != profile_user.id %}
+            <div style="margin-top: 24px;">
+                <button id="follow-btn" class="btn" onclick="toggleFollow()">Follow</button>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">🎶 Public Songs</h2>
+            <div id="songs-container">Loading...</div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px;">
+            <a href="/">← Back to Music Planner</a>
+        </div>
+    </div>
+    
+    <script>
+        const username = '{{ profile_user.username }}';
+        const userId = {{ profile_user.id }};
+        
+        async function loadProfile() {
+            const data = await fetch(`/api/profile/${username}`).then(r => r.json());
+            
+            // Stats
+            document.getElementById('stats').innerHTML = `
+                <div class="stat"><div class="stat-value">${data.stats.total_songs}</div><div class="stat-label">Songs</div></div>
+                <div class="stat"><div class="stat-value">${data.stats.followers}</div><div class="stat-label">Followers</div></div>
+                <div class="stat"><div class="stat-value">${data.stats.likes_received}</div><div class="stat-label">Likes</div></div>
+            `;
+            
+            // Follow button
+            const followBtn = document.getElementById('follow-btn');
+            if (followBtn) {
+                if (data.is_following) {
+                    followBtn.textContent = '✓ Following';
+                    followBtn.style.background = 'var(--bg-secondary)';
+                }
+            }
+            
+            // Songs
+            const container = document.getElementById('songs-container');
+            if (data.songs.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted);">No public songs yet</p>';
+            } else {
+                container.innerHTML = data.songs.map(s => `
+                    <div class="song-card">
+                        <div style="display: flex; justify-content: space-between;">
+                            <div>
+                                <strong>${s.artist}</strong>
+                                <p style="color: var(--text-secondary); font-size: 14px;">${(s.concept || '').substring(0, 60)}</p>
+                            </div>
+                            <span style="color: var(--accent);">❤️ ${s.like_count || 0}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        async function toggleFollow() {
+            const btn = document.getElementById('follow-btn');
+            const isFollowing = btn.textContent.includes('Following');
+            
+            if (isFollowing) {
+                await fetch(`/api/follow/${userId}`, {method: 'DELETE'});
+                btn.textContent = 'Follow';
+                btn.style.background = 'var(--gradient-1)';
+            } else {
+                await fetch(`/api/follow/${userId}`, {method: 'POST'});
+                btn.textContent = '✓ Following';
+                btn.style.background = 'var(--bg-secondary)';
+            }
+        }
+        
+        loadProfile();
+    </script>
+</body>
+</html>
