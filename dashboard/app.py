@@ -11,6 +11,8 @@ import glob
 import re
 import sqlite3
 import secrets
+import threading
+import shutil
 from datetime import datetime
 from pathlib import Path
 from functools import wraps
@@ -34,6 +36,11 @@ GENRES_DIR = BASE_DIR.parent / "ACESTEP_genres"
 MUSIC_DIR = Path.home() / "Music" / "acestep"
 GENERATE_SCRIPT = BASE_DIR / "generate.sh"
 DATABASE = BASE_DIR / "dashboard" / "music_planner.db"
+ARTIST_PHOTOS_DIR = BASE_DIR / "artist_photos"
+COMFYUI_PORTRAITS_DIR = BASE_DIR.parent / "comfyui-portraits"
+
+# Ensure artist photos directory exists
+ARTIST_PHOTOS_DIR.mkdir(exist_ok=True)
 
 # ============== DATABASE ==============
 
@@ -251,6 +258,7 @@ def init_db():
             voice TEXT,
             tags TEXT,
             description TEXT,
+            photo_url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id),
             UNIQUE(user_id, filename)
@@ -306,6 +314,33 @@ def init_db():
             FOREIGN KEY (song_id) REFERENCES songs(id)
         );
         
+        -- Artist photo generation jobs
+        CREATE TABLE IF NOT EXISTS artist_photo_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            artist_filename TEXT,
+            status TEXT DEFAULT 'pending',
+            gender TEXT,
+            age TEXT,
+            ethnicity TEXT,
+            hair_color TEXT,
+            hair_style TEXT,
+            eye_color TEXT,
+            clothing TEXT,
+            style TEXT,
+            background TEXT,
+            additional TEXT,
+            photo_paths TEXT,
+            selected_photo TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            error TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_photo_jobs_user ON artist_photo_jobs(user_id);
+        CREATE INDEX IF NOT EXISTS idx_photo_jobs_status ON artist_photo_jobs(status);
+        
         -- Indexes
         CREATE INDEX IF NOT EXISTS idx_songs_user ON songs(user_id);
         CREATE INDEX IF NOT EXISTS idx_songs_public ON songs(is_public);
@@ -326,6 +361,13 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_gen_logs_user ON generation_logs(user_id);
     ''')
     db.commit()
+    
+    # Migrations for existing databases
+    try:
+        db.execute('ALTER TABLE user_artists ADD COLUMN photo_url TEXT')
+        db.commit()
+    except:
+        pass  # Column already exists
     
     # Seed badges
     seed_badges(db)
@@ -1948,6 +1990,284 @@ def api_extend_song(song_id):
         return jsonify({'error': 'Not found or not yours'}), 404
     data = request.json
     return jsonify({'success': True, 'message': 'Extension queued', 'song_id': song_id, 'extension_type': data.get('type', 'verse')})
+
+# ============== ARTIST PHOTO GENERATION ==============
+
+def run_photo_generation(job_id, options):
+    """Background task to generate artist photos via ComfyUI."""
+    import sys
+    sys.path.insert(0, str(COMFYUI_PORTRAITS_DIR))
+    
+    try:
+        # Import the generate module
+        from generate import generate, OUTPUT_DIR
+        
+        generated_paths = []
+        
+        # Generate 4 photos
+        for i in range(4):
+            try:
+                path = generate(
+                    gender=options.get('gender'),
+                    age=options.get('age'),
+                    ethnicity=options.get('ethnicity'),
+                    clothing=options.get('clothing'),
+                    framing='headshot',
+                    style=options.get('style', 'photorealistic'),
+                    background=options.get('background'),
+                    additional=options.get('additional'),
+                    quality='high',
+                    resolution='full_hd',
+                    aspect='portrait'
+                )
+                
+                # Copy upscaled photo to artist_photos directory
+                dest_filename = f"job_{job_id}_option_{i+1}.png"
+                dest_path = ARTIST_PHOTOS_DIR / dest_filename
+                shutil.copy(path, dest_path)
+                generated_paths.append(dest_filename)
+                
+            except Exception as e:
+                print(f"Error generating photo {i+1}: {e}")
+                continue
+        
+        # Update job status in database
+        import sqlite3
+        db = sqlite3.connect(str(DATABASE))
+        if generated_paths:
+            db.execute('''
+                UPDATE artist_photo_jobs 
+                SET status = 'completed', photo_paths = ?, completed_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (json.dumps(generated_paths), job_id))
+        else:
+            db.execute('''
+                UPDATE artist_photo_jobs 
+                SET status = 'failed', error = 'All generations failed', completed_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (job_id,))
+        db.commit()
+        db.close()
+        
+    except Exception as e:
+        import sqlite3
+        db = sqlite3.connect(str(DATABASE))
+        db.execute('''
+            UPDATE artist_photo_jobs 
+            SET status = 'failed', error = ?, completed_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (str(e), job_id))
+        db.commit()
+        db.close()
+
+
+@app.route('/api/artist-photos/generate', methods=['POST'])
+@login_required
+def api_generate_artist_photos():
+    """Start artist photo generation job."""
+    data = request.json
+    db = get_db()
+    
+    # Create job record
+    cursor = db.execute('''
+        INSERT INTO artist_photo_jobs (
+            user_id, artist_filename, status, gender, age, ethnicity,
+            hair_color, hair_style, eye_color, clothing, style, background, additional
+        ) VALUES (?, ?, 'generating', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        session['user_id'],
+        data.get('artist_filename'),
+        data.get('gender'),
+        data.get('age'),
+        data.get('ethnicity'),
+        data.get('hair_color'),
+        data.get('hair_style'),
+        data.get('eye_color'),
+        data.get('clothing'),
+        data.get('style', 'photorealistic'),
+        data.get('background'),
+        data.get('additional')
+    ))
+    db.commit()
+    job_id = cursor.lastrowid
+    
+    # Build additional prompt from appearance details
+    additional_parts = []
+    if data.get('hair_color'):
+        additional_parts.append(f"{data['hair_color']} hair")
+    if data.get('hair_style'):
+        additional_parts.append(f"{data['hair_style']} hair style")
+    if data.get('eye_color'):
+        additional_parts.append(f"{data['eye_color']} eyes")
+    
+    options = {
+        'gender': data.get('gender'),
+        'age': data.get('age'),
+        'ethnicity': data.get('ethnicity'),
+        'clothing': data.get('clothing'),
+        'style': data.get('style', 'photorealistic'),
+        'background': data.get('background'),
+        'additional': ', '.join(additional_parts) if additional_parts else data.get('additional')
+    }
+    
+    # Start background generation
+    thread = threading.Thread(target=run_photo_generation, args=(job_id, options))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'job_id': job_id,
+        'message': 'Photo generation started. This may take a few minutes.'
+    })
+
+
+@app.route('/api/artist-photos/jobs')
+@login_required
+def api_get_photo_jobs():
+    """Get all photo jobs for current user."""
+    db = get_db()
+    jobs = db.execute('''
+        SELECT * FROM artist_photo_jobs 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC
+    ''', (session['user_id'],)).fetchall()
+    
+    result = []
+    for job in jobs:
+        j = dict(job)
+        if j['photo_paths']:
+            j['photo_paths'] = json.loads(j['photo_paths'])
+        result.append(j)
+    
+    return jsonify(result)
+
+
+@app.route('/api/artist-photos/jobs/<int:job_id>')
+@login_required
+def api_get_photo_job(job_id):
+    """Get specific photo job status."""
+    db = get_db()
+    job = db.execute('''
+        SELECT * FROM artist_photo_jobs 
+        WHERE id = ? AND user_id = ?
+    ''', (job_id, session['user_id'])).fetchone()
+    
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    j = dict(job)
+    if j['photo_paths']:
+        j['photo_paths'] = json.loads(j['photo_paths'])
+    
+    return jsonify(j)
+
+
+@app.route('/api/artist-photos/jobs/<int:job_id>/select', methods=['POST'])
+@login_required
+def api_select_artist_photo(job_id):
+    """Select a photo from a completed job."""
+    db = get_db()
+    job = db.execute('''
+        SELECT * FROM artist_photo_jobs 
+        WHERE id = ? AND user_id = ? AND status = 'completed'
+    ''', (job_id, session['user_id'])).fetchone()
+    
+    if not job:
+        return jsonify({'error': 'Job not found or not completed'}), 404
+    
+    data = request.json
+    selected_photo = data.get('photo')
+    
+    if not selected_photo:
+        return jsonify({'error': 'No photo selected'}), 400
+    
+    photo_paths = json.loads(job['photo_paths']) if job['photo_paths'] else []
+    if selected_photo not in photo_paths:
+        return jsonify({'error': 'Invalid photo selection'}), 400
+    
+    # Update job with selection
+    db.execute('''
+        UPDATE artist_photo_jobs SET selected_photo = ? WHERE id = ?
+    ''', (selected_photo, job_id))
+    
+    photo_url = f'/artist-photos/{selected_photo}'
+    
+    # If linked to an artist, update the artist
+    if job['artist_filename']:
+        # First check if it's a user artist (in database)
+        user_artist = db.execute('''
+            SELECT * FROM user_artists WHERE user_id = ? AND filename = ?
+        ''', (session['user_id'], job['artist_filename'])).fetchone()
+        
+        if user_artist:
+            # Update user artist in database
+            db.execute('''
+                UPDATE user_artists SET photo_url = ? WHERE id = ?
+            ''', (photo_url, user_artist['id']))
+        else:
+            # Check if it's a system artist (file-based)
+            artist_file = ARTISTS_DIR / f"{job['artist_filename']}.md"
+            if not artist_file.exists():
+                artist_file = ARTISTS_DIR / job['artist_filename']
+            
+            if artist_file.exists():
+                content = artist_file.read_text()
+                # Add photo_url to frontmatter
+                if '---' in content:
+                    parts = content.split('---', 2)
+                    if len(parts) >= 3:
+                        frontmatter = parts[1]
+                        body = parts[2]
+                        # Add or update photo_url
+                        if 'photo_url:' in frontmatter:
+                            frontmatter = re.sub(r'photo_url:.*\n', f'photo_url: {photo_url}\n', frontmatter)
+                        else:
+                            frontmatter = frontmatter.rstrip() + f'\nphoto_url: {photo_url}\n'
+                        content = f'---{frontmatter}---{body}'
+                        artist_file.write_text(content)
+    
+    db.commit()
+    
+    return jsonify({
+        'success': True,
+        'selected_photo': selected_photo,
+        'photo_url': f'/artist-photos/{selected_photo}'
+    })
+
+
+@app.route('/artist-photos/<path:filename>')
+def serve_artist_photo(filename):
+    """Serve artist photos."""
+    return send_from_directory(str(ARTIST_PHOTOS_DIR), filename)
+
+
+@app.route('/api/artist-photos/jobs/<int:job_id>', methods=['DELETE'])
+@login_required
+def api_delete_photo_job(job_id):
+    """Delete a photo job and its files."""
+    db = get_db()
+    job = db.execute('''
+        SELECT * FROM artist_photo_jobs 
+        WHERE id = ? AND user_id = ?
+    ''', (job_id, session['user_id'])).fetchone()
+    
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    # Delete photo files
+    if job['photo_paths']:
+        for photo in json.loads(job['photo_paths']):
+            photo_path = ARTIST_PHOTOS_DIR / photo
+            if photo_path.exists():
+                photo_path.unlink()
+    
+    # Delete job record
+    db.execute('DELETE FROM artist_photo_jobs WHERE id = ?', (job_id,))
+    db.commit()
+    
+    return jsonify({'success': True})
+
 
 # ============== STARTUP ==============
 

@@ -11,6 +11,14 @@
     <a href="/create" class="btn btn-primary">➕ New Artist</a>
 </div>
 
+<!-- Pending Photo Jobs -->
+<div id="photo-jobs-section" style="display: none; margin-bottom: 24px;">
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">📸 Pending Artist Photos</h3>
+        <div id="photo-jobs-list"></div>
+    </div>
+</div>
+
 <div class="card" style="padding: 0; overflow: hidden;">
     <table class="data-table" id="artists-table">
         <thead>
@@ -85,10 +93,167 @@
         </div>
     </div>
 </div>
+
+<!-- Photo Selection Modal -->
+<div id="photo-select-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1002; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 900px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 style="font-size: 24px;">📸 Select Artist Photo</h2>
+                <button onclick="closePhotoSelectModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 24px;">Click on the photo you'd like to use for this artist</p>
+            <div id="photo-options" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Photo Modal -->
+<div id="generate-photo-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1002; padding: 40px; overflow-y: auto;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h2 style="font-size: 24px;">🎨 Generate Artist Photo</h2>
+                <button onclick="closeGeneratePhotoModal()" class="btn btn-secondary btn-sm">✕ Close</button>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 24px;">Describe what your artist looks like. We'll generate 4 options for you to choose from.</p>
+            
+            <form id="generate-photo-form" onsubmit="startPhotoGeneration(event)">
+                <input type="hidden" id="photo-artist-filename">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Gender</label>
+                        <select id="photo-gender" class="form-input">
+                            <option value="">Random</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Age</label>
+                        <select id="photo-age" class="form-input">
+                            <option value="">Random</option>
+                            <option value="late 20s">Late 20s</option>
+                            <option value="30s">30s</option>
+                            <option value="40s">40s</option>
+                            <option value="50s">50s</option>
+                            <option value="60s">60s</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Ethnicity</label>
+                        <select id="photo-ethnicity" class="form-input">
+                            <option value="">Random</option>
+                            <option value="caucasian">Caucasian</option>
+                            <option value="african">African</option>
+                            <option value="asian">Asian</option>
+                            <option value="hispanic">Hispanic</option>
+                            <option value="middle eastern">Middle Eastern</option>
+                            <option value="south asian">South Asian</option>
+                            <option value="mixed race">Mixed Race</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Hair Color</label>
+                        <select id="photo-hair-color" class="form-input">
+                            <option value="">Random</option>
+                            <option value="black">Black</option>
+                            <option value="brown">Brown</option>
+                            <option value="blonde">Blonde</option>
+                            <option value="red">Red</option>
+                            <option value="gray">Gray</option>
+                            <option value="white">White</option>
+                            <option value="dyed blue">Dyed Blue</option>
+                            <option value="dyed pink">Dyed Pink</option>
+                            <option value="dyed purple">Dyed Purple</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Hair Style</label>
+                        <select id="photo-hair-style" class="form-input">
+                            <option value="">Random</option>
+                            <option value="short">Short</option>
+                            <option value="medium length">Medium</option>
+                            <option value="long">Long</option>
+                            <option value="curly">Curly</option>
+                            <option value="wavy">Wavy</option>
+                            <option value="straight">Straight</option>
+                            <option value="braided">Braided</option>
+                            <option value="mohawk">Mohawk</option>
+                            <option value="bald">Bald</option>
+                            <option value="buzzcut">Buzzcut</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Eye Color</label>
+                        <select id="photo-eye-color" class="form-input">
+                            <option value="">Random</option>
+                            <option value="brown">Brown</option>
+                            <option value="blue">Blue</option>
+                            <option value="green">Green</option>
+                            <option value="hazel">Hazel</option>
+                            <option value="gray">Gray</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Clothing Style</label>
+                    <input type="text" id="photo-clothing" class="form-input" placeholder="e.g., leather jacket, casual t-shirt, formal suit...">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Background</label>
+                    <select id="photo-background" class="form-input">
+                        <option value="">Random</option>
+                        <option value="professional studio with neutral backdrop">Studio (Neutral)</option>
+                        <option value="urban city street at night with neon lights">Urban Night</option>
+                        <option value="nature outdoor with trees">Nature</option>
+                        <option value="concert stage with dramatic lighting">Concert Stage</option>
+                        <option value="recording studio with equipment">Recording Studio</option>
+                        <option value="rooftop with city skyline">Rooftop Cityscape</option>
+                        <option value="beach at sunset">Beach Sunset</option>
+                        <option value="industrial warehouse">Industrial</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Photo Style</label>
+                    <select id="photo-style" class="form-input">
+                        <option value="photorealistic">Photorealistic</option>
+                        <option value="editorial fashion">Editorial Fashion</option>
+                        <option value="cinematic">Cinematic</option>
+                        <option value="artistic portrait">Artistic</option>
+                        <option value="glamour">Glamour</option>
+                        <option value="documentary">Documentary</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Additional Details (optional)</label>
+                    <input type="text" id="photo-additional" class="form-input" placeholder="e.g., tattoos, piercings, glasses, beard...">
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" onclick="closeGeneratePhotoModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="generate-photo-btn">📸 Generate 4 Photos</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+let currentPhotoJobId = null;
+
 async function loadArtists() {
     const artists = await fetch('/api/artists').then(r => r.json());
     const tbody = document.getElementById('artists-body');
@@ -103,16 +268,24 @@ async function loadArtists() {
         const name = artist.name || artist.filename;
         const style = artist.style || artist.personality || '-';
         const voice = artist.voice || artist.vocal_gender || '-';
+        const hasPhoto = artist.photo_url ? true : false;
         
         return `
             <tr>
-                <td><strong>${name}</strong></td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        ${hasPhoto ? `<img src="${artist.photo_url}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">` : 
+                            `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center;">🎤</div>`}
+                        <strong>${name}</strong>
+                    </div>
+                </td>
                 <td style="color: var(--text-secondary);">${style}</td>
                 <td style="color: var(--text-secondary);">${voice}</td>
                 <td>${isSystem ? '<span class="tag">system</span>' : '<span class="tag custom">custom</span>'}</td>
                 <td class="actions">
                     <button onclick="showArtist('${artist.filename}')" class="btn btn-secondary btn-sm">👁️ View</button>
                     ${!isSystem ? `
+                        <button onclick="openGeneratePhotoModal('${artist.filename}')" class="btn btn-secondary btn-sm" style="background: var(--success);">📸</button>
                         <button onclick="editArtist('${artist.filename}')" class="btn btn-secondary btn-sm" style="background: var(--accent);">✏️ Edit</button>
                         <button onclick="deleteArtist('${artist.filename}', '${name.replace(/'/g, "\\'")}')" class="btn btn-secondary btn-sm" style="background: var(--error);">🗑️</button>
                     ` : ''}
@@ -121,6 +294,174 @@ async function loadArtists() {
         `;
     }).join('');
 }
+
+async function loadPhotoJobs() {
+    const jobs = await fetch('/api/artist-photos/jobs').then(r => r.json());
+    const section = document.getElementById('photo-jobs-section');
+    const list = document.getElementById('photo-jobs-list');
+    
+    const pendingJobs = jobs.filter(j => j.status === 'generating' || (j.status === 'completed' && !j.selected_photo));
+    
+    if (pendingJobs.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    list.innerHTML = pendingJobs.map(job => {
+        if (job.status === 'generating') {
+            return `
+                <div style="display: flex; align-items: center; gap: 16px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 12px;">
+                    <div class="spinner"></div>
+                    <div>
+                        <div style="font-weight: 500;">Generating photos${job.artist_filename ? ` for ${job.artist_filename}` : ''}...</div>
+                        <div style="color: var(--text-secondary); font-size: 13px;">This may take a few minutes</div>
+                    </div>
+                </div>
+            `;
+        } else if (job.status === 'completed' && !job.selected_photo) {
+            return `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 12px;">
+                    <div>
+                        <div style="font-weight: 500;">✅ Photos ready${job.artist_filename ? ` for ${job.artist_filename}` : ''}</div>
+                        <div style="color: var(--text-secondary); font-size: 13px;">${job.photo_paths ? job.photo_paths.length : 0} options available</div>
+                    </div>
+                    <button onclick="openPhotoSelectModal(${job.id})" class="btn btn-primary">Select Photo</button>
+                </div>
+            `;
+        } else if (job.status === 'failed') {
+            return `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background: var(--error); border-radius: 8px; margin-bottom: 12px;">
+                    <div>
+                        <div style="font-weight: 500;">❌ Generation failed</div>
+                        <div style="font-size: 13px;">${job.error || 'Unknown error'}</div>
+                    </div>
+                    <button onclick="deletePhotoJob(${job.id})" class="btn btn-secondary">Dismiss</button>
+                </div>
+            `;
+        }
+    }).join('');
+}
+
+async function openPhotoSelectModal(jobId) {
+    currentPhotoJobId = jobId;
+    const job = await fetch(`/api/artist-photos/jobs/${jobId}`).then(r => r.json());
+    
+    if (!job.photo_paths || job.photo_paths.length === 0) {
+        alert('No photos available');
+        return;
+    }
+    
+    const container = document.getElementById('photo-options');
+    container.innerHTML = job.photo_paths.map(photo => `
+        <div onclick="selectPhoto('${photo}')" style="cursor: pointer; border: 3px solid transparent; border-radius: 12px; overflow: hidden; transition: all 0.2s;" 
+             onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='transparent'">
+            <img src="/artist-photos/${photo}" style="width: 100%; aspect-ratio: 3/4; object-fit: cover;">
+        </div>
+    `).join('');
+    
+    document.getElementById('photo-select-modal').style.display = 'block';
+}
+
+function closePhotoSelectModal() {
+    document.getElementById('photo-select-modal').style.display = 'none';
+    currentPhotoJobId = null;
+}
+
+async function selectPhoto(photo) {
+    if (!currentPhotoJobId) return;
+    
+    const response = await fetch(`/api/artist-photos/jobs/${currentPhotoJobId}/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo })
+    });
+    
+    if (response.ok) {
+        closePhotoSelectModal();
+        loadPhotoJobs();
+        loadArtists();
+    } else {
+        const result = await response.json();
+        alert(result.error || 'Failed to select photo');
+    }
+}
+
+function openGeneratePhotoModal(artistFilename = null) {
+    document.getElementById('photo-artist-filename').value = artistFilename || '';
+    document.getElementById('generate-photo-modal').style.display = 'block';
+}
+
+function closeGeneratePhotoModal() {
+    document.getElementById('generate-photo-modal').style.display = 'none';
+    document.getElementById('generate-photo-form').reset();
+}
+
+async function startPhotoGeneration(event) {
+    event.preventDefault();
+    
+    const btn = document.getElementById('generate-photo-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px;"></span> Starting...';
+    
+    const data = {
+        artist_filename: document.getElementById('photo-artist-filename').value || null,
+        gender: document.getElementById('photo-gender').value || null,
+        age: document.getElementById('photo-age').value || null,
+        ethnicity: document.getElementById('photo-ethnicity').value || null,
+        hair_color: document.getElementById('photo-hair-color').value || null,
+        hair_style: document.getElementById('photo-hair-style').value || null,
+        eye_color: document.getElementById('photo-eye-color').value || null,
+        clothing: document.getElementById('photo-clothing').value || null,
+        background: document.getElementById('photo-background').value || null,
+        style: document.getElementById('photo-style').value || 'photorealistic',
+        additional: document.getElementById('photo-additional').value || null
+    };
+    
+    try {
+        const response = await fetch('/api/artist-photos/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeGeneratePhotoModal();
+            loadPhotoJobs();
+            // Start polling for completion
+            pollPhotoJob(result.job_id);
+        } else {
+            alert(result.error || 'Failed to start generation');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '📸 Generate 4 Photos';
+}
+
+function pollPhotoJob(jobId) {
+    const interval = setInterval(async () => {
+        const job = await fetch(`/api/artist-photos/jobs/${jobId}`).then(r => r.json());
+        
+        if (job.status !== 'generating') {
+            clearInterval(interval);
+            loadPhotoJobs();
+        }
+    }, 5000);
+}
+
+async function deletePhotoJob(jobId) {
+    await fetch(`/api/artist-photos/jobs/${jobId}`, { method: 'DELETE' });
+    loadPhotoJobs();
+}
+
+// Close modals on background click
+document.getElementById('photo-select-modal').addEventListener('click', e => { if (e.target.id === 'photo-select-modal') closePhotoSelectModal(); });
+document.getElementById('generate-photo-modal').addEventListener('click', e => { if (e.target.id === 'generate-photo-modal') closeGeneratePhotoModal(); });
 
 async function showArtist(filename) {
     const artist = await fetch(`/api/artists/${filename}`).then(r => r.json());
@@ -239,6 +580,11 @@ async function deleteArtist(filename, name) {
 document.getElementById('artist-modal').addEventListener('click', e => { if (e.target.id === 'artist-modal') closeModal(); });
 document.getElementById('edit-modal').addEventListener('click', e => { if (e.target.id === 'edit-modal') closeEditModal(); });
 
+// Initial load
 loadArtists();
+loadPhotoJobs();
+
+// Poll for photo job updates every 10 seconds
+setInterval(loadPhotoJobs, 10000);
 </script>
 {% endblock %}
