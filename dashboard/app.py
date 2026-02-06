@@ -1367,6 +1367,17 @@ def api_create_artist():
             if artist_file.exists():
                 artist = parse_artist_file(artist_file)
                 db = get_db()
+                # Map YAML fields correctly
+                style = artist.get('personality', '') or artist.get('style', '')
+                if artist.get('mood'):
+                    style = f"{style} - {artist.get('mood')}" if style else artist.get('mood')
+                
+                voice = artist.get('vocal_style', '') or artist.get('voice', '')
+                if artist.get('vocal_gender'):
+                    voice = f"{artist.get('vocal_gender')}, {voice}" if voice else artist.get('vocal_gender')
+                
+                tags = artist.get('signature_tags', '') or artist.get('tags', '')
+                
                 db.execute('''
                     INSERT INTO user_artists (user_id, name, filename, style, voice, tags, description)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -1374,9 +1385,9 @@ def api_create_artist():
                     session['user_id'],
                     artist.get('name', artist['filename']),
                     artist['filename'],
-                    artist.get('style', ''),
-                    artist.get('voice', ''),
-                    artist.get('tags', ''),
+                    style,
+                    voice,
+                    tags,
                     artist.get('body', '')
                 ))
                 db.commit()

@@ -14,9 +14,9 @@ GENRES_DIR="$SCRIPT_DIR/../ACESTEP_genres"
 ACESTEP_BIN="${ACESTEP_BIN:-$HOME/bin/acestep}"
 
 # Ollama config
-OLLAMA_HOST="${OLLAMA_HOST:-localhost}"
+OLLAMA_HOST="${OLLAMA_HOST:-10.10.10.13}"
 OLLAMA_PORT="${OLLAMA_PORT:-11434}"
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3:30b-a3b-q4_K_M}"
 OLLAMA_URL="http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/generate"
 
 # Defaults
@@ -958,10 +958,33 @@ One paragraph bio.
 
 Output ONLY the formatted profile.")
 
-    local artist_name=$(echo "$profile" | grep "^name:" | head -1 | sed 's/name: *//' | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
-    [[ -z "$artist_name" ]] && artist_name="artist_$(date +%s)"
+    # Extract real_name (e.g., "John Smith") and convert to first-last format
+    local real_name=$(echo "$profile" | grep "^real_name:" | head -1 | sed 's/real_name: *//')
+    local stage_name=$(echo "$profile" | grep "^name:" | head -1 | sed 's/name: *//')
+    
+    # Use real_name for filename, fall back to stage name
+    local name_for_file="${real_name:-$stage_name}"
+    
+    if [[ -z "$name_for_file" ]]; then
+        echo -e "${RED}❌ Failed to generate artist (empty response from Ollama)${NC}"
+        return 1
+    fi
+    
+    # Convert to first-last format (lowercase, replace spaces with hyphens)
+    local base_name=$(echo "$name_for_file" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-')
+    
+    # Handle duplicates: first-last, first-last-2, first-last-3, etc.
+    local artist_name="$base_name"
+    local counter=2
+    while [[ -f "$ARTISTS_DIR/$artist_name.md" ]]; do
+        artist_name="${base_name}-${counter}"
+        ((counter++))
+    done
 
     echo "$profile" > "$ARTISTS_DIR/$artist_name.md"
+    
+    # Output for the API to parse
+    echo "ARTIST_FILE=$ARTISTS_DIR/$artist_name.md"
 
     echo -e "${GREEN}✅ Created artist: $artist_name${NC}"
     echo -e "${BLUE}📁 File: $ARTISTS_DIR/$artist_name.md${NC}"
