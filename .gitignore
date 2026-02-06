@@ -34,3 +34,10 @@ env/
 # Misc
 nohup.out
 dashboard/music_planner.db
+# Generated content
+artist_photos/
+*.pyc
+__pycache__/
+.DS_Store
+dashboard/venv/
+*.db
